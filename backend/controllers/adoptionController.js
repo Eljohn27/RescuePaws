@@ -1,6 +1,7 @@
 import { matchedData } from "express-validator";
 import AdoptionPost from "../models/AdoptionPost.js";
 import AdoptionApplication from "../models/AdoptionApplication.js";
+import Report from "../models/Report.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import audit from "../utils/audit.js";
@@ -8,6 +9,7 @@ import { notify, notifyAdmins } from "../utils/notify.js";
 import { getPaging } from "../utils/pagination.js";
 import { forbid, isAdmin, isOwner } from "../utils/guards.js";
 import { serializeAdoption, STATUS_TAGS } from "../utils/serializers.js";
+import { formatPangasinanLocation } from "../utils/pangasinanLocations.js";
 
 const KEY_TO_STATUS = Object.fromEntries(Object.entries(STATUS_TAGS).map(([status, t]) => [t.key, status]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -31,7 +33,7 @@ export const getAdoptions = asyncHandler(async (req, res) => {
   }
 
   const [posts, total] = await Promise.all([
-    AdoptionPost.find(filter).populate("owner", "name").sort({ createdAt: -1 }).skip(skip).limit(limit),
+    AdoptionPost.find(filter).populate("owner", "name avatar createdAt").sort({ createdAt: -1 }).skip(skip).limit(limit),
     AdoptionPost.countDocuments(filter),
   ]);
   res.set({ "X-Total-Count": String(total), "X-Page": String(page), "X-Total-Pages": String(Math.ceil(total / limit)) });
@@ -42,7 +44,7 @@ export const getAdoptions = asyncHandler(async (req, res) => {
 // @desc    The logged-in user's own listings in every state (pending / approved / rejected), with the admin's note
 // @access  Private
 export const getMyAdoptions = asyncHandler(async (req, res) => {
-  const posts = await AdoptionPost.find({ owner: req.userId }).populate("owner", "name").sort({ createdAt: -1 }).limit(100);
+  const posts = await AdoptionPost.find({ owner: req.userId }).populate("owner", "name avatar createdAt").sort({ createdAt: -1 }).limit(100);
   res.json(posts.map((p) => serializeAdoption(p, req.user)));
 });
 
@@ -72,7 +74,7 @@ export const getAllAdoptionsAdmin = asyncHandler(async (req, res) => {
 // @desc    One listing. Pending / rejected listings are visible only to their owner and admins.
 // @access  Public (see above)
 export const getAdoptionById = asyncHandler(async (req, res) => {
-  const post = await AdoptionPost.findById(req.params.id).populate("owner", "name");
+  const post = await AdoptionPost.findById(req.params.id).populate("owner", "name avatar createdAt");
   const canSee = post && (isPublic(post) || (req.user && (isAdmin(req.user) || isOwner(post.owner, req.userId))));
   if (!canSee) throw new ApiError(404, "Adoption listing not found"); // 404 on purpose: don't reveal that hidden posts exist
   res.json(serializeAdoption(post, req.user));
@@ -83,6 +85,7 @@ export const getAdoptionById = asyncHandler(async (req, res) => {
 // @access  Private (reporter, admin)
 export const createAdoption = asyncHandler(async (req, res) => {
   const data = matchedData(req, { locations: ["body"] });
+  data.location = formatPangasinanLocation(data.cityMunicipalityCode, data.barangayCode, data.streetLandmark);
   const admin = isAdmin(req.user);
 
   const post = await AdoptionPost.create({
@@ -91,7 +94,7 @@ export const createAdoption = asyncHandler(async (req, res) => {
     moderationStatus: admin ? "Approved" : "Pending for Approval",
     ...(admin ? { reviewedBy: req.userId, reviewedAt: new Date() } : {}),
   });
-  await post.populate("owner", "name");
+  await post.populate("owner", "name avatar createdAt");
 
   if (!admin) {
     notifyAdmins({
@@ -117,6 +120,7 @@ export const updateAdoption = asyncHandler(async (req, res) => {
   if (!admin && !isOwner(post.owner, req.userId)) throw forbid(req, "adoption", post._id);
 
   const data = matchedData(req, { locations: ["body"] });
+  data.location = formatPangasinanLocation(data.cityMunicipalityCode, data.barangayCode, data.streetLandmark);
   if (!admin) {
     if (post.listingStatus === "Adopted") throw new ApiError(409, "This pet has already been adopted, so the listing can no longer be edited");
     if (data.listingStatus === "Adopted") {
@@ -135,7 +139,7 @@ export const updateAdoption = asyncHandler(async (req, res) => {
     post.reviewNote = "";
   }
   await post.save();
-  await post.populate("owner", "name");
+  await post.populate("owner", "name avatar createdAt");
 
   if (!admin && changed) {
     notifyAdmins({
@@ -157,20 +161,23 @@ export const moderateAdoption = asyncHandler(async (req, res) => {
   const post = await AdoptionPost.findById(req.params.id);
   if (!post) throw new ApiError(404, "Adoption listing not found");
 
+  const previous = post.moderationStatus;
   post.moderationStatus = moderationStatus;
   post.reviewedBy = req.userId;
   post.reviewedAt = new Date();
-  post.reviewNote = reviewNote || "";
+  post.reviewNote = moderationStatus === "Rejected" ? reviewNote || "" : "";
   await post.save();
-  await post.populate("owner", "name");
+  await post.populate("owner", "name avatar createdAt");
 
   const approved = moderationStatus === "Approved";
-  notify(post.owner, {
+  const tookDown = !approved && previous === "Approved";
+  // Awaited on purpose: the poster must have the message before the admin sees "success".
+  await notify(post.owner, {
     category: "Adoption",
-    title: `Your adoption listing was ${moderationStatus.toLowerCase()}: ${post.petName}`,
+    title: approved ? `Your foster post is live: ${post.petName}` : `Your foster post was ${tookDown ? "taken down" : "rejected"}: ${post.petName}`,
     message: approved
-      ? `${post.petName} is now live in the adoption feed.`
-      : `${post.petName} was not approved.${post.reviewNote ? ` Reason: ${post.reviewNote}` : ""} You can edit the listing and it will be reviewed again.`,
+      ? `${post.petName} is now live on Browse.`
+      : `${post.petName} was ${tookDown ? "taken down" : "not approved"}. Reason: ${post.reviewNote} You can edit the post and it will be reviewed again.`,
     relatedId: post._id,
   });
   audit(req, "adoption.moderate", { resource: "adoption", resourceId: post._id, meta: { moderationStatus } });
@@ -185,6 +192,7 @@ export const deleteAdoption = asyncHandler(async (req, res) => {
   if (!isAdmin(req.user) && !isOwner(post.owner, req.userId)) throw forbid(req, "adoption", post._id);
 
   await AdoptionApplication.deleteMany({ post: post._id });
+  await Report.deleteMany({ target: post._id, targetType: "adoption" });
   await post.deleteOne();
   audit(req, "adoption.delete", { resource: "adoption", resourceId: post._id });
   res.json({ message: "Adoption listing deleted" });

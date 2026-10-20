@@ -9,7 +9,12 @@ const adoptionPostSchema = new mongoose.Schema(
     age: { type: String, trim: true, maxlength: 40, default: "" },
     breed: { type: String, trim: true, maxlength: 100, default: "" },
     description: { type: String, trim: true, maxlength: 1500, default: "" },
-    location: { type: String, required: true, trim: true, minlength: 2, maxlength: 150 },
+    location: { type: String, required: true, trim: true, minlength: 2, maxlength: 200 },
+    cityMunicipalityCode: { type: String, trim: true, maxlength: 10 },
+    barangayCode: { type: String, trim: true, maxlength: 10 },
+    streetLandmark: { type: String, trim: true, maxlength: 100, default: "" },
+    latitude: { type: Number, min: 12, max: 21.5 },
+    longitude: { type: Number, min: 119, max: 125.5 },
     photoUrl: { type: String, trim: true, maxlength: 2048, default: "" },
     listingStatus: {
       type: String,

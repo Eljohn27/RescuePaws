@@ -1,6 +1,7 @@
 import { matchedData } from "express-validator";
 import Sighting from "../models/Sighting.js";
 import RescueProof from "../models/RescueProof.js";
+import Report from "../models/Report.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import audit from "../utils/audit.js";
@@ -8,6 +9,7 @@ import { notify, notifyAdmins } from "../utils/notify.js";
 import { getPaging } from "../utils/pagination.js";
 import { forbid, isAdmin, isOwner } from "../utils/guards.js";
 import { serializeSighting } from "../utils/serializers.js";
+import { formatPangasinanLocation } from "../utils/pangasinanLocations.js";
 
 // Only approved, published sightings are on the browse page. Once rescued, a sighting leaves it (admins still see it).
 const VISIBLE = { postStatus: "published", moderationStatus: "Approved" };
@@ -18,6 +20,7 @@ const isPublic = (s) => s.postStatus === "published" && s.moderationStatus === "
 // @access  Private (reporter, admin)
 export const createSighting = asyncHandler(async (req, res) => {
   const data = matchedData(req, { locations: ["body"] }); // only validated fields
+  data.location = formatPangasinanLocation(data.cityMunicipalityCode, data.barangayCode, data.streetLandmark);
   const admin = isAdmin(req.user);
 
   const sighting = await Sighting.create({
@@ -51,7 +54,7 @@ export const getSightings = asyncHandler(async (req, res) => {
   if (typeof q.animalType === "string") filter.animalType = q.animalType;
 
   const [sightings, total] = await Promise.all([
-    Sighting.find(filter).populate("reportedBy", "name").sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Sighting.find(filter).populate("reportedBy", "name avatar createdAt").sort({ createdAt: -1 }).skip(skip).limit(limit),
     Sighting.countDocuments(filter),
   ]);
 
@@ -71,7 +74,7 @@ export const getMySightings = asyncHandler(async (req, res) => {
 // @desc    One sighting. Drafts / unreviewed / rejected ones are visible only to their reporter and admins.
 // @access  Public (see above)
 export const getSightingById = asyncHandler(async (req, res) => {
-  const sighting = await Sighting.findById(req.params.id).populate("reportedBy", "name");
+  const sighting = await Sighting.findById(req.params.id).populate("reportedBy", "name avatar createdAt");
   const canSee = sighting && (isPublic(sighting) || (req.user && (isOwner(sighting.reportedBy, req.userId) || isAdmin(req.user))));
   if (!canSee) throw new ApiError(404, "Sighting not found"); // 404 on purpose: don't reveal that hidden posts exist
   res.json(serializeSighting(sighting, req.user));
@@ -89,12 +92,18 @@ export const updateSighting = asyncHandler(async (req, res) => {
   if (!admin && sighting.moderationStatus === "Rescued") throw new ApiError(409, "This stray was already rescued, so the report can no longer be edited");
 
   const data = matchedData(req, { locations: ["body"] });
+  data.location = formatPangasinanLocation(data.cityMunicipalityCode, data.barangayCode, data.streetLandmark);
   if (data.rescueStatus !== undefined && !admin) throw forbid(req, "sighting", sighting._id); // public badge: admins only
 
   const wasPublished = sighting.postStatus === "published";
   Object.assign(sighting, data);
   // A regular user's edit must be re-approved before it shows publicly again.
-  if (!admin) sighting.moderationStatus = "Pending for Approval";
+  if (!admin) {
+    sighting.moderationStatus = "Pending for Approval";
+    sighting.reviewNote = "";
+    sighting.reviewedBy = undefined;
+    sighting.reviewedAt = undefined;
+  }
   await sighting.save();
 
   if (!admin && sighting.postStatus === "published" && !wasPublished) {
@@ -144,22 +153,36 @@ export const getAllSightingsAdmin = asyncHandler(async (req, res) => {
 // @desc    Admin approves, rejects, or marks a sighting rescued.   Body: { moderationStatus }
 // @access  Private (admin only)
 export const moderateSighting = asyncHandler(async (req, res) => {
-  const { moderationStatus } = matchedData(req, { locations: ["body"] });
+  const { moderationStatus, reviewNote } = matchedData(req, { locations: ["body"] });
   const sighting = await Sighting.findById(req.params.id);
   if (!sighting) throw new ApiError(404, "Sighting not found");
 
+  const previous = sighting.moderationStatus;
   sighting.moderationStatus = moderationStatus;
+  sighting.reviewedBy = req.userId;
+  sighting.reviewedAt = new Date();
+  sighting.reviewNote = moderationStatus === "Rejected" ? reviewNote || "" : "";
   // Keep the public badge roughly in sync with the decision.
   if (moderationStatus === "Rescued") sighting.rescueStatus = "Rescue Resolved";
   if (moderationStatus === "Approved" && sighting.rescueStatus === "Spotted") sighting.rescueStatus = "Needs Foster";
   await sighting.save();
 
-  notify(sighting.reportedBy, {
-    category: "Sightings",
-    title: `Your sighting was ${moderationStatus.toLowerCase()}`,
-    message: `Your report at ${sighting.location} is now "${moderationStatus}".`,
-    relatedId: sighting._id,
-  });
+  const where = sighting.location;
+  let title;
+  let message;
+  if (moderationStatus === "Rejected") {
+    const tookDown = previous === "Approved";
+    title = tookDown ? "Your sighting report was taken down" : "Your sighting report was rejected";
+    message = `Your report at ${where} was ${tookDown ? "taken down" : "not approved"}. Reason: ${sighting.reviewNote} You can edit the report and it will be reviewed again.`;
+  } else if (moderationStatus === "Approved") {
+    title = "Your sighting report is live";
+    message = `Your report at ${where} was approved and is now on Browse.`;
+  } else {
+    title = "Your sighting was marked as rescued";
+    message = `Good news! The stray you reported at ${where} has been rescued.`;
+  }
+  // Awaited on purpose: the poster must have the message before the admin sees "success".
+  await notify(sighting.reportedBy, { category: "Sightings", title, message, relatedId: sighting._id });
   audit(req, "sighting.moderate", { resource: "sighting", resourceId: sighting._id, meta: { moderationStatus } });
   res.json(sighting);
 });
@@ -172,6 +195,7 @@ export const deleteSighting = asyncHandler(async (req, res) => {
   if (!isAdmin(req.user) && !isOwner(sighting.reportedBy, req.userId)) throw forbid(req, "sighting", sighting._id);
 
   await RescueProof.deleteMany({ sighting: sighting._id });
+  await Report.deleteMany({ target: sighting._id, targetType: "sighting" });
   await sighting.deleteOne();
   audit(req, "sighting.delete", { resource: "sighting", resourceId: sighting._id });
   res.json({ message: "Sighting deleted" });

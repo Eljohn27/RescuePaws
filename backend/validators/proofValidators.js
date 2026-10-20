@@ -1,4 +1,4 @@
-import { query } from "express-validator";
+import { body, query } from "express-validator";
 import { str, requiredImage, oneOf, idParam, pagination } from "./common.js";
 
 export const submit = [
@@ -10,7 +10,9 @@ export const submit = [
 export const review = [
   idParam("id"),
   oneOf("status", "Status", ["Approved", "Rejected"], { required: true }),
-  str("reviewNote", "Review note", { max: 500 }),
+  str("reviewNote", "Reason", { max: 500 }),
+  body("reviewNote").custom((v, { req }) => req.body.status !== "Rejected" || (typeof v === "string" && v.trim().length >= 3))
+    .withMessage("Tell the person why their proof is being rejected (at least 3 characters)"),
 ];
 
 export const listAll = [

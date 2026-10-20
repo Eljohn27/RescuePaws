@@ -66,7 +66,7 @@ const userSchema = new mongoose.Schema(
 
 // Hash the password whenever it is new or changed (bcrypt, cost 12). Controllers never hash it themselves.
 userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
+  if (!this.isModified("password") || this.$locals.passwordAlreadyHashed) return;
   this.password = await bcrypt.hash(this.password, env.bcryptRounds);
 });
 

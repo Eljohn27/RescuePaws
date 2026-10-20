@@ -12,6 +12,7 @@ import adoptionRoutes from "./routes/adoptionRoutes.js";
 import proofRoutes from "./routes/proofRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import uploadRoutes, { UPLOAD_DIR } from "./routes/uploadRoutes.js";
 
@@ -48,6 +49,7 @@ app.use("/api/adoptions", adoptionRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/proofs", proofRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use(notFound);

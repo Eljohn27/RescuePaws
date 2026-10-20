@@ -1,171 +1,43 @@
 import React from 'react';
+import Icon from './Icons';
 
-export default function Navbar({ activeTab, setActiveTab }) {
+export default function Navbar({ activeTab, setActiveTab, unread = 0, openReports = 0, onLogout }) {
   const tabs = [
     { id: 'overview', label: 'Admin Dashboard' },
     { id: 'sightings', label: 'Sightings Moderation' },
     { id: 'adoptions', label: 'Foster Posts' },
+    { id: 'reports', label: 'Reported Posts', badge: openReports },
     { id: 'users', label: 'Manage Users' },
   ];
 
   return (
-    <header
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '12px 24px',
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e2e8f0',
-        fontFamily: 'sans-serif',
-      }}
-    >
-      {/* LOGO */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '24px' }}>
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            backgroundColor: '#a34828', // Terracotta Brown
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justify: 'center',
-            color: '#ffffff',
-            fontSize: '16px',
-          }}
-        >
-          🐾
+    <header className="an">
+      <div className="an__inner">
+        <div className="an__brand">
+          <span className="an__logo"><Icon name="paw" size={18} /></span>
+          <strong>RescuePaws</strong>
+          <span className="an__tag">ADMIN</span>
         </div>
-        <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#0f172a' }}>
-          RescuePaws
-        </span>
-        <span
-          style={{
-            backgroundColor: '#ffedd5',
-            color: '#a34828',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            letterSpacing: '0.5px',
-          }}
-        >
-          ADMIN
-        </span>
-      </div>
 
-      {/* NAVIGATION TABS */}
-      <nav style={{ display: 'flex', gap: '4px' }}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                fontSize: '14px',
-                fontWeight: isActive ? '600' : '500',
-                cursor: 'pointer',
-                backgroundColor: isActive ? '#a34828' : 'transparent',
-                color: isActive ? '#ffffff' : '#64748b',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-              }}
-            >
+        <nav className="an__tabs" aria-label="Admin sections">
+          {tabs.map((tab) => (
+            <button type="button" key={tab.id} className={`an__tab${activeTab === tab.id ? ' is-on' : ''}`} onClick={() => setActiveTab(tab.id)}>
               {tab.label}
+              {tab.badge > 0 && <span className="an__count">{tab.badge}</span>}
             </button>
-          );
-        })}
-      </nav>
+          ))}
+        </nav>
 
-      {/* RIGHT SIDE: SEARCH BAR TO PROFILE */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-        {/* SEARCH BAR */}
-        <div style={{ position: 'relative', width: '260px' }}>
-          <span
-            style={{
-              position: 'absolute',
-              left: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#94a3b8',
-              fontSize: '13px',
-            }}
-          >
-            🔍
-          </span>
-          <input
-            type="text"
-            placeholder="Search records, animals, volunteers..."
-            style={{
-              width: '100%',
-              padding: '8px 12px 8px 34px',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              backgroundColor: '#f8fafc',
-              fontSize: '12px',
-              color: '#0f172a',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* NOTIFICATION BUTTON (Pupunta sa AdminNotifications page) */}
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setActiveTab('admin-notifications')}
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: activeTab === 'admin-notifications' ? '#e2e8f0' : '#f1f5f9',
-              color: '#475569',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justify: 'center',
-              fontSize: '14px',
-            }}
-          >
-            🔔
+        <div className="an__right">
+          {/* The red dot is only there while something is unread, and goes away once it has been read. */}
+          <button type="button" className={`an__icon${activeTab === 'admin-notifications' ? ' is-on' : ''}`} onClick={() => setActiveTab('admin-notifications')}
+            aria-label={unread > 0 ? `Notifications, ${unread} new` : 'Notifications'} title="Notifications">
+            <Icon name="bell" size={18} />
+            {unread > 0 && <span className="an__dot">{unread > 9 ? '9+' : unread}</span>}
           </button>
-          <span
-            style={{
-              position: 'absolute',
-              top: '5px',
-              right: '5px',
-              width: '6px',
-              height: '6px',
-              backgroundColor: '#a34828',
-              borderRadius: '50%',
-            }}
-          />
+          <button type="button" className={`an__icon${activeTab === 'profile' ? ' is-on' : ''}`} onClick={() => setActiveTab('profile')} aria-label="My profile" title="My profile"><Icon name="user" size={18} /></button>
+          <button type="button" className="an__icon" onClick={onLogout} aria-label="Log out" title="Log out"><Icon name="logout" size={18} /></button>
         </div>
-
-        {/* PROFILE BUTTON */}
-        <button
-          onClick={() => setActiveTab('profile')}
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: '#a34828',
-            color: '#ffffff',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justify: 'center',
-            fontSize: '14px',
-            cursor: 'pointer',
-          }}
-        >
-          👤
-        </button>
       </div>
     </header>
   );

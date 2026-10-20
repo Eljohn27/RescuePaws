@@ -3,8 +3,9 @@ import { Users, Eye, Home, CheckCircle2, LayoutGrid } from 'lucide-react';
 import { api } from '../api';
 
 const card = { backgroundColor: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' };
+const MAIN_SITE_URL = 'http://localhost:5173';
 
-export default function AdminOverview({ setActiveTab }) {
+export default function AdminOverview({ setActiveTab, openTab }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
 
@@ -17,11 +18,11 @@ export default function AdminOverview({ setActiveTab }) {
 
   const c = stats.counters;
   const cards = [
-    { title: 'Users', count: c.users, sub: 'Registered accounts', icon: <Users size={20} color="#0369a1" />, bg: '#e0f2fe' },
-    { title: 'Sightings', count: c.sightings, sub: 'All stray reports', icon: <Eye size={20} color="#c2410c" />, bg: '#ffedd5' },
-    { title: 'Fosters', count: c.fosters, sub: 'Pets posted for adoption', icon: <Home size={20} color="#d97706" />, bg: '#fef3c7' },
-    { title: 'Rescued', count: c.rescued, sub: 'Strays rescued', icon: <CheckCircle2 size={20} color="#059669" />, bg: '#d1fae5' },
-    { title: 'On Browse', count: c.onBrowse, sub: 'Posts visible to the public', icon: <LayoutGrid size={20} color="#7c3aed" />, bg: '#ede9fe' },
+    { title: 'Users', count: c.users, sub: 'Registered accounts', icon: <Users size={20} color="#0369a1" />, bg: '#e0f2fe', tab: 'users' },
+    { title: 'Sightings', count: c.sightings, sub: 'All stray reports', icon: <Eye size={20} color="#c2410c" />, bg: '#ffedd5', tab: 'sightings' },
+    { title: 'Fosters', count: c.fosters, sub: 'Pets posted for adoption', icon: <Home size={20} color="#d97706" />, bg: '#fef3c7', tab: 'adoptions' },
+    { title: 'Rescued', count: c.rescued, sub: 'Strays rescued', icon: <CheckCircle2 size={20} color="#059669" />, bg: '#d1fae5', tab: 'sightings', filter: 'Rescued' },
+    { title: 'On Browse', count: c.onBrowse, sub: 'Posts visible to the public', icon: <LayoutGrid size={20} color="#7c3aed" />, bg: '#ede9fe', external: true },
   ];
 
   const pendingSightings = stats.sightings.byModeration['Pending for Approval'] || 0;
@@ -31,6 +32,7 @@ export default function AdminOverview({ setActiveTab }) {
     { label: 'Sighting reports waiting for approval', count: pendingSightings, tab: 'sightings' },
     { label: 'Foster posts waiting for approval', count: pendingFosters, tab: 'adoptions' },
     { label: 'Rescue proofs waiting for review', count: pendingProofs, tab: 'sightings' },
+    { label: 'Reported posts waiting for review', count: (stats.reports && stats.reports.open) || 0, tab: 'reports' },
   ];
 
   return (
@@ -42,14 +44,17 @@ export default function AdminOverview({ setActiveTab }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         {cards.map((k) => (
-          <div key={k.title} style={card}>
+          <button key={k.title} type="button" className="adm-stat-card" style={card} aria-label={`Open ${k.title}: ${k.count}`} onClick={() => {
+            if (k.external) window.open(`${MAIN_SITE_URL}/browse`, '_blank', 'noopener,noreferrer');
+            else (openTab || setActiveTab)(k.tab, k.filter);
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#64748b' }}>{k.title}</span>
               <div style={{ backgroundColor: k.bg, padding: '8px', borderRadius: '8px', display: 'flex' }}>{k.icon}</div>
             </div>
             <h2 style={{ fontSize: '32px', fontWeight: 'bold', margin: '8px 0 4px 0', color: '#0f172a' }}>{k.count}</h2>
             <span style={{ fontSize: '12px', color: '#94a3b8' }}>{k.sub}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -57,15 +62,13 @@ export default function AdminOverview({ setActiveTab }) {
         <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a' }}>Waiting for you</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {todo.map((t) => (
-            <div key={t.label} style={{ padding: '14px 16px', borderRadius: '8px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button key={t.label} type="button" className="adm-todo-row" onClick={() => setActiveTab(t.tab)}>
               <span style={{ color: '#1e293b', fontSize: '14px' }}>
                 <strong style={{ fontSize: '18px', marginRight: '8px' }}>{t.count}</strong>
                 {t.label}
               </span>
-              <button onClick={() => setActiveTab(t.tab)} style={{ backgroundColor: '#9a3412', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
-                Open
-              </button>
-            </div>
+              <span className="adm-todo-open">Open</span>
+            </button>
           ))}
         </div>
       </div>

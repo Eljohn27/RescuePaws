@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { api } from './api';
 import Navbar from './components/Navbar';
 import AdminOverview from './pages/AdminOverview';
 import SightingsModeration from './pages/SightingsModeration';
@@ -6,14 +7,46 @@ import AdoptionReviews from './pages/AdoptionReviews';
 import ManageUsers from './pages/ManageUsers';
 import AdminProfile from './pages/AdminProfile';
 import AdminNotifications from './pages/AdminNotifications';
+import ReportedPosts from './pages/ReportedPosts';
 
 // Where to send people who aren't allowed in here.
 const MAIN_SITE_URL = 'http://localhost:5173';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [sightingsTab, setSightingsTab] = useState('All');
   const [authState, setAuthState] = useState('checking'); // checking | authorized | denied
   const [adminUser, setAdminUser] = useState(null);
+  const [unread, setUnread] = useState(0);
+  const [openReports, setOpenReports] = useState(0);
+
+  // Bell dot + reports badge follow the real numbers and refresh by themselves.
+  const refreshCounts = useCallback(() => {
+    api('/notifications/unread-count').then((r) => setUnread(r.unreadCount || 0)).catch(() => {});
+    api('/admin/stats').then((r) => setOpenReports(r.reports?.open || 0)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (authState !== 'authorized') return undefined;
+    refreshCounts();
+    const timer = setInterval(refreshCounts, 15000);
+    window.addEventListener('focus', refreshCounts);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refreshCounts); };
+  }, [authState, refreshCounts]);
+
+  const logout = () => {
+    localStorage.removeItem('adminToken');
+    window.location.href = MAIN_SITE_URL + '/login';
+  };
+
+  const selectAdminTab = (tab) => {
+    if (tab === 'sightings') setSightingsTab('All');
+    setActiveTab(tab);
+  };
+  const openDashboardTab = (tab, filter) => {
+    if (tab === 'sightings') setSightingsTab(filter || 'All');
+    setActiveTab(tab);
+  };
 
   useEffect(() => {
     async function verifyAdmin() {
@@ -83,7 +116,7 @@ export default function App() {
           href={MAIN_SITE_URL + '/login'}
           style={{ backgroundColor: '#9E4624', color: '#fff', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: '700', fontSize: '14px' }}
         >
-          Go to Login →
+          Go to Login
         </a>
       </div>
     );
@@ -91,15 +124,16 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} adminUser={adminUser} />
+      <Navbar activeTab={activeTab} setActiveTab={selectAdminTab} unread={unread} openReports={openReports} onLogout={logout} />
 
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 16px' }}>
-        {activeTab === 'overview' && <AdminOverview setActiveTab={setActiveTab} />}
-        {activeTab === 'sightings' && <SightingsModeration />}
+      <main className="adm-main rp-page">
+        {activeTab === 'overview' && <AdminOverview setActiveTab={selectAdminTab} openTab={openDashboardTab} />}
+        {activeTab === 'sightings' && <SightingsModeration initialTab={sightingsTab} />}
         {activeTab === 'adoptions' && <AdoptionReviews />}
         {activeTab === 'users' && <ManageUsers />}
-        {activeTab === 'profile' && <AdminProfile />}
-        {activeTab === 'admin-notifications' && <AdminNotifications />}
+        {activeTab === 'profile' && <AdminProfile adminUser={adminUser} setAdminUser={setAdminUser} />}
+        {activeTab === 'reports' && <ReportedPosts onChanged={refreshCounts} />}
+        {activeTab === 'admin-notifications' && <AdminNotifications onChanged={refreshCounts} />}
       </main>
     </div>
   );

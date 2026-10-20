@@ -15,6 +15,11 @@ const sightingSchema = new mongoose.Schema(
 
     // --- Step 3: Location & Sighting Timing ---
     location: { type: String, required: true, trim: true, minlength: 2, maxlength: 200 },
+    cityMunicipalityCode: { type: String, trim: true, maxlength: 10 },
+    barangayCode: { type: String, trim: true, maxlength: 10 },
+    streetLandmark: { type: String, trim: true, maxlength: 100, default: "" },
+    latitude: { type: Number, min: -90, max: 90 },
+    longitude: { type: Number, min: -180, max: 180 },
     spottedAt: { type: Date, default: Date.now },
     condition: {
       type: String,
@@ -36,6 +41,11 @@ const sightingSchema = new mongoose.Schema(
       enum: ["Pending for Approval", "Approved", "Rejected", "Rescued"],
       default: "Pending for Approval",
     },
+
+    // Why an admin rejected / took the report down (the reporter sees it)
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    reviewedAt: { type: Date },
+    reviewNote: { type: String, trim: true, maxlength: 500, default: "" },
 
     // --- Engagement ---
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

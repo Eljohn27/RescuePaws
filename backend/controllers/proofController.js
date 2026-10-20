@@ -88,13 +88,13 @@ export const reviewProof = asyncHandler(async (req, res) => {
   await proof.save();
 
   const place = sighting.location;
-  notify(proof.submittedBy, {
+  await notify(proof.submittedBy, {
     category: "Sightings",
     title: `Your rescue proof was ${status.toLowerCase()}`,
     message:
       status === "Approved"
         ? `Thank you! The stray at ${place} is now marked as rescued.`
-        : `Your proof for the stray at ${place} was not approved.${proof.reviewNote ? ` Reason: ${proof.reviewNote}` : ""}`,
+        : `Your proof for the stray at ${place} was not approved. Reason: ${proof.reviewNote}`,
     relatedId: proof._id,
   });
 

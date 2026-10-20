@@ -1,9 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import Modal from '../components/Modal';
+import { cleanFullName } from '../utils/validators';
 
 const field = { width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box' };
 const small = (bg, color = '#fff', border = 'none') => ({ backgroundColor: bg, color, border, padding: '5px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' });
 const when = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const avatarUrl = (value) => {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  return `http://localhost:5000${value.startsWith('/') ? value : `/${value}`}`;
+};
+
+function UserAvatar({ user }) {
+  const [failed, setFailed] = useState(false);
+  const image = avatarUrl(user.avatar);
+  const initials = (user.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const style = { width: 32, height: 32, borderRadius: '50%', flex: '0 0 32px', objectFit: 'cover', background: '#f3e8e2' };
+
+  return image && !failed
+    ? <img src={image} alt="" aria-hidden="true" onError={() => setFailed(true)} style={style} />
+    : <span aria-hidden="true" style={{ ...style, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#9a3412', fontSize: '13px', fontWeight: 700 }}>{initials}</span>;
+}
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
@@ -40,10 +58,11 @@ export default function ManageUsers() {
     finally { setSaving(false); }
   };
 
-  const remove = async (u) => {
-    if (!window.confirm(`Delete ${u.name}?\n\nTheir account, requests and proofs are removed. Their posts stay on the site.`)) return;
-    try { await api(`/admin/users/${u._id}`, { method: 'DELETE' }); say('User deleted.'); load(); }
-    catch (e) { say(e.message, true); }
+  const [deleting, setDeleting] = useState(null);
+  const remove = async () => {
+    const u = deleting;
+    try { await api(`/admin/users/${u._id}`, { method: 'DELETE' }); say('User deleted.'); setDeleting(null); load(); }
+    catch (e) { say(e.message, true); setDeleting(null); }
   };
 
   const q = search.trim().toLowerCase();
@@ -77,7 +96,12 @@ export default function ManageUsers() {
                 const isAdmin = u.roles.includes('admin');
                 return (
                   <tr key={u._id}>
-                    <td style={{ ...td, fontWeight: '600', color: '#0f172a' }}>{u.name}</td>
+                    <td style={{ ...td, fontWeight: '600', color: '#0f172a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '150px' }}>
+                        <UserAvatar user={u} />
+                        <span>{u.name}</span>
+                      </div>
+                    </td>
                     <td style={td}>{u.email}</td>
                     <td style={td}>{u.phone || '-'}</td>
                     <td style={td}>
@@ -86,7 +110,7 @@ export default function ManageUsers() {
                     <td style={td}>{when(u.createdAt)}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>
                       <button onClick={() => startEdit(u)} style={{ ...small('#9a3412'), marginRight: '6px' }}>Edit</button>
-                      <button onClick={() => remove(u)} style={small('#fff', '#b91c1c', '1px solid #fca5a5')}>Delete</button>
+                      <button onClick={() => setDeleting(u)} style={small('#fff', '#b91c1c', '1px solid #fca5a5')}>Delete</button>
                     </td>
                   </tr>
                 );
@@ -96,15 +120,20 @@ export default function ManageUsers() {
         </div>
       )}
 
+      {deleting && (
+        <Modal icon="trash" tone="bad" title={`Delete ${deleting.name}?`} subtitle="Their account, requests and proofs are removed. Their posts stay on the site." onClose={() => setDeleting(null)}
+          footer={<><button type="button" className="rp-btn rp-btn--ghost" onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="rp-btn rp-btn--solid-danger" onClick={remove}>Delete user</button></>} />
+      )}
+
       {editing && (
         <div onClick={() => setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '16px' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '12px', padding: '22px', width: '100%', maxWidth: '380px' }}>
             <h3 style={{ margin: '0 0 4px', fontSize: '18px', color: '#0f172a' }}>Edit user</h3>
             <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#64748b' }}>{editing.email}</p>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', margin: '12px 0 6px' }}>Full name</label>
-            <input style={field} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', margin: '12px 0 6px' }}>Phone (11 digits)</label>
-            <input style={field} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <input style={field} value={form.name} onChange={(e) => setForm({ ...form, name: cleanFullName(e.target.value) })} maxLength={50} />
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', margin: '12px 0 6px' }}>Phone (11 digits, starts with 09)</label>
+            <input style={field} value={form.phone} inputMode="numeric" maxLength={11} placeholder="09XXXXXXXXX" onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 11) })} />
             {formError && <div style={{ color: '#b91c1c', fontSize: '12px', marginTop: '10px' }}>{formError}</div>}
             <div style={{ display: 'flex', gap: '8px', marginTop: '18px' }}>
               <button onClick={save} disabled={saving} style={{ ...small('#9a3412'), padding: '9px 18px', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Save'}</button>

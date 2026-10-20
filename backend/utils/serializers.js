@@ -1,5 +1,6 @@
 // Turns database documents into safe JSON for the frontends.
 // These are whitelists: private fields (phone numbers, password hashes, ...) are never included by accident.
+import { isDagupanAdoption } from "./pangasinanLocations.js";
 
 const PLACEHOLDER_IMG =
   "data:image/svg+xml;utf8," +
@@ -30,6 +31,17 @@ export const timeAgo = (date) => {
 
 const idOf = (v) => (v && v._id ? String(v._id) : v ? String(v) : undefined);
 
+// What other members may see about a poster (never the email or phone). `u` can be a populated user or null.
+export const serializePoster = (u) => {
+  const has = !!(u && u.name);
+  return {
+    id: has ? idOf(u) : null,
+    name: publicName(has ? u.name : ""),
+    avatar: has ? u.avatar || "" : "",
+    memberSince: has ? u.createdAt : null,
+  };
+};
+
 export const serializeUser = (u) => ({
   _id: String(u._id),
   name: u.name,
@@ -57,6 +69,11 @@ export const serializeSighting = (s, viewer) => {
     name: feat ? `${s.animalType} (${feat.length > 40 ? `${feat.slice(0, 37)}...` : feat})` : `${s.animalType} sighting`,
     description: s.notes || s.keyFeatures || "",
     location: s.location,
+    cityMunicipalityCode: s.cityMunicipalityCode || "",
+    barangayCode: s.barangayCode || "",
+    streetLandmark: s.streetLandmark || "",
+    latitude: s.latitude,
+    longitude: s.longitude,
     time: timeAgo(s.spottedAt || s.createdAt),
     image: s.photoUrl || PLACEHOLDER_IMG,
     badge: s.rescueStatus,
@@ -64,6 +81,7 @@ export const serializeSighting = (s, viewer) => {
     needsFoster: s.rescueStatus === "Needs Foster",
     type: s.animalType,
     sighter: publicName(s.reportedBy && s.reportedBy.name),
+    poster: serializePoster(s.reportedBy),
     animalType: s.animalType,
     approximateSize: s.approximateSize,
     keyFeatures: s.keyFeatures,
@@ -78,7 +96,10 @@ export const serializeSighting = (s, viewer) => {
     isMine: owner,
     createdAt: s.createdAt,
   };
-  if (canSeeContact) item.reporterPhone = s.reporterPhone; // private: reporter and admins only
+  if (canSeeContact) {
+    item.reporterPhone = s.reporterPhone; // private: reporter and admins only
+    item.reviewNote = s.reviewNote || "";
+  }
   return item;
 };
 
@@ -99,8 +120,14 @@ export const serializeAdoption = (p, viewer) => {
     id: String(p._id),
     _id: String(p._id),
     author: publicName(p.owner && p.owner.name),
+    poster: serializePoster(p.owner),
     time: timeAgo(p.createdAt),
     location: p.location,
+    cityMunicipalityCode: p.cityMunicipalityCode || "",
+    barangayCode: p.barangayCode || "",
+    streetLandmark: p.streetLandmark || "",
+    latitude: p.latitude,
+    longitude: p.longitude,
     description: p.description,
     image: p.photoUrl || PLACEHOLDER_IMG,
     category: String(p.animalType).toLowerCase(),
@@ -114,6 +141,7 @@ export const serializeAdoption = (p, viewer) => {
     breed: p.breed,
     animalType: p.animalType,
     listingStatus: p.listingStatus,
+    availableInDagupan: isDagupanAdoption(p),
     moderationStatus: p.moderationStatus,
     adoptedAt: p.adoptedAt,
     ownerId: idOf(p.owner),

@@ -1,138 +1,91 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '../api';
+import Icon from '../components/Icons';
 
-export default function AdminNotifications() {
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'New Adoption Application',
-      message: 'Alex Vance submitted an application to adopt Buster.',
-      time: '10 minutes ago',
-      category: 'Adoption',
-      unread: true,
-    },
-    {
-      id: 2,
-      title: 'Sighting Moderation Required',
-      message: 'New stray dog report in Barangay Central needs approval.',
-      time: '1 hour ago',
-      category: 'Sightings',
-      unread: true,
-    },
-    {
-      id: 3,
-      title: 'System Backup Success',
-      message: 'Automated weekly database backup finished without errors.',
-      time: '4 hours ago',
-      category: 'System',
-      unread: false,
-    },
-    {
-      id: 4,
-      title: 'Volunteer Application',
-      message: 'Maria Santos registered as a rescue driver volunteer.',
-      time: '1 day ago',
-      category: 'Volunteer',
-      unread: false,
-    },
-  ]);
+const POLL_MS = 10000;
+const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', System: 'info' };
+const TONE = {
+  Adoption: { bg: '#ffe4e6', color: '#e11d48' },
+  Sightings: { bg: '#e0f2fe', color: '#0369a1' },
+  Reports: { bg: '#fef3c7', color: '#b45309' },
+  System: { bg: '#f1f5f9', color: '#64748b' },
+};
 
-  const markAsRead = (id) => {
-    setNotifications(
-      notifications.map((item) =>
-        item.id === id ? { ...item, unread: false } : item
-      )
-    );
+// Real admin inbox: new posts, rescue proofs and reports show up here by themselves.
+export default function AdminNotifications({ onChanged }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('all');
+  const alive = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api('/notifications');
+      if (alive.current) setItems(r.notifications);
+    } catch { /* keep what we have; the next refresh tries again */ } finally {
+      if (alive.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    load();
+    const timer = setInterval(load, POLL_MS);
+    return () => { alive.current = false; clearInterval(timer); };
+  }, [load]);
+
+  const unread = items.filter((i) => i.unread).length;
+
+  const readOne = async (n) => {
+    if (!n.unread) return;
+    setItems((list) => list.map((i) => (i._id === n._id ? { ...i, unread: false } : i)));
+    try { await api(`/notifications/${n._id}/read`, { method: 'PATCH' }); } catch { /* corrected on next refresh */ }
+    onChanged?.();
+  };
+  const readAll = async () => {
+    setItems((list) => list.map((i) => ({ ...i, unread: false })));
+    try { await api('/notifications/read-all', { method: 'PATCH' }); } catch { /* corrected on next refresh */ }
+    onChanged?.();
   };
 
-  const markAllAsRead = () => {
-    setNotifications(
-      notifications.map((item) => ({ ...item, unread: false }))
-    );
-  };
+  const shown = tab === 'unread' ? items.filter((i) => i.unread) : items;
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'left' }}>
+      <div className="adm-bar">
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
-            Admin Notifications
-          </h1>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>
-            Recent updates, adoption requests, and system activity logs.
-          </p>
+          <h2 className="adm-title">Admin Notifications</h2>
+          <p className="adm-sub" style={{ margin: 0 }}>New posts, proofs and reports. This page updates by itself.</p>
         </div>
-        <button
-          onClick={markAllAsRead}
-          style={{
-            padding: '8px 14px',
-            borderRadius: '6px',
-            border: '1px solid #cbd5e1',
-            backgroundColor: '#ffffff',
-            color: '#0f172a',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}
-        >
-          Mark all as read
-        </button>
+        <button type="button" className="rp-btn rp-btn--ghost rp-btn--sm" onClick={readAll} disabled={!unread}><Icon name="check" size={14} stroke={3} /> Mark all as read</button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {notifications.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => markAsRead(item.id)}
-            style={{
-              padding: '16px',
-              borderRadius: '10px',
-              border: '1px solid #e2e8f0',
-              backgroundColor: item.unread ? '#fff7ed' : '#ffffff',
-              borderLeft: item.unread ? '4px solid #a34828' : '1px solid #e2e8f0',
-              display: 'flex',
-              justify: 'space-between',
-              alignItems: 'flex-start',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: '#f1f5f9',
-                    color: '#475569',
-                  }}
-                >
-                  {item.category}
-                </span>
-                <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a' }}>
-                  {item.title}
-                </span>
-              </div>
-              <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0' }}>
-                {item.message}
-              </p>
-              <span style={{ fontSize: '12px', color: '#94a3b8' }}>{item.time}</span>
-            </div>
+      <div className="adm-tabs" style={{ marginBottom: 14 }}>
+        <button type="button" className={`adm-tab${tab === 'all' ? ' is-on' : ''}`} onClick={() => setTab('all')}>All ({items.length})</button>
+        <button type="button" className={`adm-tab${tab === 'unread' ? ' is-on' : ''}`} onClick={() => setTab('unread')}>Unread ({unread})</button>
+      </div>
 
-            {item.unread && (
-              <span
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  backgroundColor: '#a34828',
-                  borderRadius: '50%',
-                  marginTop: '6px',
-                }}
-              />
-            )}
-          </div>
-        ))}
+      {loading && <p style={{ color: '#64748b' }}>Loading...</p>}
+      {!loading && shown.length === 0 && <div className="adm-empty" style={{ textAlign: 'center' }}><Icon name="bell" size={28} /><p style={{ margin: '8px 0 0' }}>{tab === 'unread' ? 'You are all caught up.' : 'No notifications yet.'}</p></div>}
+
+      <div className="adm-list" style={{ gap: 10 }}>
+        {shown.map((n) => {
+          const tone = TONE[n.category] || TONE.System;
+          return (
+            <button type="button" key={n._id} onClick={() => readOne(n)} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}
+              style={{ display: 'flex', gap: 14, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, border: `1px solid ${n.unread ? '#fed7aa' : '#e2e8f0'}`, background: n.unread ? '#fff7ed' : '#fff', cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit' }}>
+              <span style={{ width: 40, height: 40, borderRadius: 12, background: tone.bg, color: tone.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name={ICON[n.category] || 'info'} size={19} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: 14, color: '#0f172a' }}>{n.title}</strong>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{n.time}</span>
+                </span>
+                {n.message && <span style={{ display: 'block', marginTop: 3, fontSize: 13, color: '#475569', lineHeight: 1.5, wordBreak: 'break-word' }}>{n.message}</span>}
+              </span>
+              {n.unread && <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', marginTop: 6, flexShrink: 0 }} />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

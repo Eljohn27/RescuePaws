@@ -1,292 +1,162 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '../api';
+import Icon from '../components/Icons';
+import Modal from '../components/Modal';
+import PasswordField from '../components/PasswordField';
+import OtpField from '../components/OtpField';
+import { cleanFullName, fullNameProblem, cleanPhone, phoneProblem, toLocalPhone, fromLocalPhone, passwordProblem } from '../utils/validators';
 
-export default function AdminProfile() {
-  const [isEditing, setIsEditing] = useState(false);
+const card = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 22, marginBottom: 16, textAlign: 'left' };
 
-  const [profileData, setProfileData] = useState({
-    name: 'Elena Rostova',
-    role: 'Admin',
-    email: 'elena.rostova@rescuepaws.org',
-    memberSince: 'Jan 2023',
-    status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
-    stats: {
-      petsRescued: { count: 89, subtext: 'Rehomed or adopted' },
-      activeSightings: { count: 14, subtext: 'Open reports' },
-      fosterPlacements: { count: 42, subtext: 'In community care' },
-      reviewsDone: { count: 28, subtext: 'This month' },
-    },
-    pendingTasksCount: 3,
-    recentTasks: [
-      { id: 1, title: 'Review Adoption Application #104', type: 'Adoption', date: 'Today, 10:30 AM', status: 'Pending' },
-      { id: 2, title: 'Approve Sightings Report for Quezon City', type: 'Moderation', date: 'Yesterday, 4:15 PM', status: 'In Progress' },
-      { id: 3, title: 'Verify Foster Placement for Buster', type: 'Foster', date: 'Oct 14, 2024', status: 'Pending' },
-    ]
-  });
+// The admin's own account: real details, real counters, and the same rules as the main site.
+export default function AdminProfile({ adminUser, setAdminUser }) {
+  const [stats, setStats] = useState(null);
+  const [name, setName] = useState(adminUser?.name || '');
+  const [phone, setPhone] = useState(fromLocalPhone(adminUser?.phone));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const say = (msg, bad = false) => { setToast({ msg, bad }); setTimeout(() => setToast(null), 4500); };
 
-  const [formData, setFormData] = useState({
-    name: profileData.name,
-    email: profileData.email,
-    newPassword: '',
-    confirmPassword: '',
-  });
+  useEffect(() => { api('/admin/stats').then(setStats).catch(() => {}); }, []);
 
-  const handleOpenEdit = () => {
-    setFormData({
-      name: profileData.name,
-      email: profileData.email,
-      newPassword: '',
-      confirmPassword: '',
-    });
-    setIsEditing(true);
-  };
-
-  const handleSave = (e) => {
+  const save = async (e) => {
     e.preventDefault();
-
-    if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-
-    setProfileData((prev) => ({
-      ...prev,
-      name: formData.name,
-      email: formData.email,
-    }));
-
-    setIsEditing(false);
-    alert('Profile updated successfully!');
+    setError('');
+    const issue = fullNameProblem(name.trim()) || phoneProblem(phone);
+    if (issue) return setError(issue);
+    setSaving(true);
+    try {
+      const u = await api('/users/me', { method: 'PATCH', body: { name: name.trim(), phone: toLocalPhone(phone) } });
+      setAdminUser((cur) => ({ ...cur, name: u.name, phone: u.phone }));
+      say('Profile saved.');
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
 
-  // Reusable CSS style para sa malinis na Input fields
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: '6px',
-    border: '1px solid #cbd5e1',
-    backgroundColor: '#ffffff',
-    color: '#0f172a',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-    outline: 'none',
+  const c = stats?.counters;
+  const pending = stats ? (stats.sightings.byModeration['Pending for Approval'] || 0) + (stats.adoptionPosts.byModeration['Pending for Approval'] || 0) + ((stats.proofs && stats.proofs['Needs Review']) || 0) + (stats.reports?.open || 0) : null;
+  const tiles = [['Strays rescued', c?.rescued], ['Sightings', c?.sightings], ['Foster posts', c?.fosters], ['Waiting for review', pending]];
+  const since = adminUser?.createdAt ? new Date(adminUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ ...card, display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="rp-avatar" style={{ width: 72, height: 72, fontSize: 28 }}>{(adminUser?.name || '?')[0].toUpperCase()}</span>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h2 style={{ margin: 0, fontSize: 22, color: '#0f172a' }}>{adminUser?.name}</h2>
+          <div style={{ fontSize: 13, color: '#64748b', wordBreak: 'break-all' }}>{adminUser?.email}</div>
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span className="rp-badge" style={{ background: '#ffedd5', color: '#a34828' }}><Icon name="shield" size={12} /> Administrator</span>
+            {since && <span className="rp-badge" style={{ background: '#f1f5f9', color: '#475569' }}>Member since {since}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+        {tiles.map(([label, n]) => (
+          <div key={label} style={{ ...card, marginBottom: 0, padding: 16 }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: '#a34828' }}>{n ?? '-'}</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <form style={card} onSubmit={save} noValidate>
+        <h3 style={{ margin: '0 0 14px', fontSize: 17 }}>Your details</h3>
+        <div className="rp-field">
+          <div className="rp-label__row"><label className="rp-label" htmlFor="ad-name">Full name</label><span className="rp-counter">{name.length}/50</span></div>
+          <input id="ad-name" className="rp-input" value={name} maxLength={50} onChange={(e) => setName(cleanFullName(e.target.value))} />
+        </div>
+        <div className="rp-field">
+          <label className="rp-label" htmlFor="ad-phone">Phone number</label>
+          <div className="rp-input-wrap">
+            <span className="rp-input-wrap__prefix">+63</span>
+            <input id="ad-phone" className="rp-input rp-input--bare" type="tel" inputMode="numeric" placeholder="9XX XXX XXXX" value={phone} maxLength={10} onChange={(e) => setPhone(cleanPhone(e.target.value))} />
+            <span className="rp-counter">{phone.length}/10</span>
+          </div>
+        </div>
+        {error && <div className="rp-alert rp-alert--bad" role="alert">{error}</div>}
+        <button type="submit" className="rp-btn rp-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</button>
+      </form>
+
+      <PasswordChange onDone={(m) => say(m)} />
+      {toast && <div className={`rp-toast rp-toast--${toast.bad ? 'bad' : 'ok'}`} role="status">{toast.msg}</div>}
+    </div>
+  );
+}
+
+function PasswordChange({ onDone }) {
+  const [f, setF] = useState({ current: '', next: '', confirm: '' });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState(null);
+  const [otp, setOtp] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!step || seconds <= 0) return undefined;
+    const t = setTimeout(() => setSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [step, seconds]);
+
+  const request = async (e) => {
+    e.preventDefault();
+    setError('');
+    const issue = passwordProblem(f.next);
+    if (issue) return setError(issue.replace('Password', 'New password'));
+    if (f.next === f.current) return setError('New password must be different from the current one.');
+    if (f.next !== f.confirm) return setError('New password and confirmation do not match.');
+    setBusy(true);
+    try {
+      const r = await api('/users/me/password/request', { method: 'POST', body: { currentPassword: f.current, newPassword: f.next } });
+      setStep({ token: r.challengeToken, email: r.email }); setSeconds(r.resendAfterSeconds ?? 30); setOtp(''); setModalError('');
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+
+  const confirm = async () => {
+    setBusy(true); setModalError('');
+    try {
+      const r = await api('/users/me/password', { method: 'PATCH', body: { challengeToken: step.token, otp } });
+      if (r.token) localStorage.setItem('adminToken', r.token);
+      setStep(null); setF({ current: '', next: '', confirm: '' });
+      onDone('Password updated. Other devices were signed out.');
+    } catch (err) { setModalError(err.message); } finally { setBusy(false); }
+  };
+
+  const resend = async () => {
+    if (busy || seconds > 0) return;
+    setBusy(true); setModalError('');
+    try {
+      const r = await api('/users/me/password/resend', { method: 'POST', body: { challengeToken: step.token } });
+      setStep({ token: r.challengeToken, email: r.email }); setSeconds(r.resendAfterSeconds ?? 30); setOtp('');
+    } catch (err) { setModalError(err.message); } finally { setBusy(false); }
   };
 
   return (
-    <div style={{ textAlign: 'left', width: '100%', maxWidth: '1100px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      
-      {/* TOP HEADER CARD */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          
-          {/* USER INFO */}
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <img 
-              src={profileData.avatar} 
-              alt={profileData.name} 
-              style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0' }} 
-            />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
-                  {profileData.name}
-                </h1>
-                <span style={{ backgroundColor: '#f1f5f9', color: '#475569', fontSize: '12px', padding: '3px 10px', borderRadius: '12px', fontWeight: '600' }}>
-                  {profileData.role}
-                </span>
-              </div>
-              
-              <div style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
-                {profileData.email} • Member since {profileData.memberSince} • <span style={{ color: '#16a34a', fontWeight: '600' }}>{profileData.status}</span>
-              </div>
+    <>
+      <form style={card} onSubmit={request} noValidate>
+        <h3 style={{ margin: '0 0 14px', fontSize: 17 }}>Change password</h3>
+        <PasswordField label="Current password" value={f.current} onChange={(v) => setF({ ...f, current: v })} autoComplete="current-password" lenient />
+        <PasswordField label="New password" value={f.next} onChange={(v) => setF({ ...f, next: v })} autoComplete="new-password" meter />
+        <PasswordField label="Confirm new password" value={f.confirm} onChange={(v) => setF({ ...f, confirm: v })} autoComplete="new-password" error={f.confirm && f.next !== f.confirm ? 'Passwords do not match.' : ''} />
+        {error && <div className="rp-alert rp-alert--bad" role="alert">{error}</div>}
+        <button type="submit" className="rp-btn rp-btn--primary" disabled={busy || !f.current || !f.next || !f.confirm}>{busy && !step ? 'Sending code...' : 'Send verification code'}</button>
+        <div className="rp-hint" style={{ marginTop: 8 }}>We email a 6-digit code to confirm the change.</div>
+      </form>
+      {step && (
+        <Modal title="Confirm password change" icon="mail" locked maxWidth={400} subtitle={<>Enter the 6-digit code sent to <strong>{step.email}</strong>. It expires in 5 minutes.</>}>
+          <div>
+            {modalError && <div className="rp-alert rp-alert--bad" role="alert">{modalError}</div>}
+            <OtpField value={otp} onChange={setOtp} />
+            <button type="button" className="rp-btn rp-btn--primary rp-btn--block" disabled={busy || otp.length !== 6} onClick={confirm}>{busy ? 'Saving...' : 'Confirm and update password'}</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 13 }}>
+              <button type="button" className="rp-link" disabled={busy || seconds > 0} onClick={resend}>{seconds > 0 ? `Resend code in ${seconds}s` : 'Resend code'}</button>
+              <button type="button" className="rp-link" style={{ color: '#64748b' }} onClick={() => setStep(null)}>Cancel</button>
             </div>
           </div>
-
-          {/* EDIT BUTTON */}
-          <button 
-            type="button"
-            onClick={handleOpenEdit}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              backgroundColor: '#ffffff', 
-              border: '1px solid #cbd5e1', 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: '#334155', 
-              cursor: 'pointer' 
-            }}
-          >
-            ✏️ Edit Profile
-          </button>
-        </div>
-
-        {/* STATS CARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '28px' }}>
-          <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Pets Rescued</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{profileData.stats.petsRescued.count}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{profileData.stats.petsRescued.subtext}</div>
-          </div>
-
-          <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Active Sightings</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{profileData.stats.activeSightings.count}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{profileData.stats.activeSightings.subtext}</div>
-          </div>
-
-          <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Foster Placements</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{profileData.stats.fosterPlacements.count}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{profileData.stats.fosterPlacements.subtext}</div>
-          </div>
-
-          <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Reviews Done</div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{profileData.stats.reviewsDone.count}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{profileData.stats.reviewsDone.subtext}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* RECENT ACTIVITY & ASSIGNED TASKS SECTION */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
-            Recent Activity &amp; Assigned Tasks
-          </h2>
-          <span style={{ fontSize: '12px', color: '#a34828', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: '12px', fontWeight: '600' }}>
-            {profileData.pendingTasksCount} pending tasks
-          </span>
-        </div>
-
-        {/* LIST OF TASKS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {profileData.recentTasks.map((task) => (
-            <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{task.title}</div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{task.type} • {task.date}</div>
-              </div>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', color: task.status === 'Pending' ? '#c2410c' : '#0284c7', backgroundColor: task.status === 'Pending' ? '#ffedd5' : '#e0f2fe', padding: '4px 8px', borderRadius: '6px' }}>
-                {task.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* MODAL EDIT PROFILE WITH CLEAN LIGHT INPUTS */}
-      {isEditing && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
-          display: 'grid',
-          placeItems: 'center',
-          zIndex: 9999,
-          padding: '16px',
-        }}>
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '440px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-            boxSizing: 'border-box',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>Edit Profile Details</h3>
-              <button 
-                type="button"
-                onClick={() => setIsEditing(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  Full Name
-                </label>
-                <input 
-                  type="text" 
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  Email Address
-                </label>
-                <input 
-                  type="email" 
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '12px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#a34828' }}>🔒 Change Password (Optional)</span>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  New Password
-                </label>
-                <input 
-                  type="password" 
-                  placeholder="Leave blank to keep current password"
-                  value={formData.newPassword}
-                  onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '6px' }}>
-                  Confirm New Password
-                </label>
-                <input 
-                  type="password" 
-                  placeholder="Confirm new password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditing(false)}
-                  style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', color: '#475569', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#a34828', color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        </Modal>
       )}
-
-    </div>
+    </>
   );
 }

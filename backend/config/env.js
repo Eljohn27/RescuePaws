@@ -57,6 +57,8 @@ const env = {
   // locked for lockoutMinutes. Both have safe defaults, so no .env change is required.
   maxLoginAttempts: int(process.env.MAX_LOGIN_ATTEMPTS, 5),
   lockoutMinutes: int(process.env.LOCKOUT_MINUTES, 15),
+  gmailUser: process.env.GMAIL_USER || "",
+  gmailAppPassword: (process.env.GMAIL_APP_PASSWORD || "").replace(/\s/g, ""),
 };
 
 export default env;

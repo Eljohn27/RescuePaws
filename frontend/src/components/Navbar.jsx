@@ -1,86 +1,121 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
+import Icon from './Icons';
+import Modal from './Modal';
+import './Navbar.css';
 
-const BRAND = '#9E4624';
+const POLL_MS = 15000;
 
 export default function Navbar({ isLoggedIn, onLogout, user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [pending, setPending] = useState(0); // adoption requests waiting for this user's answer
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const isActive = (path) => location.pathname === path;
 
-  // Refresh the bell number every time the user moves to another page.
+  const confirmLogout = () => {
+    setLogoutConfirmOpen(false);
+    onLogout();
+    navigate('/login');
+  };
+
+  // The red dot follows the real unread count: it appears when something new arrives and disappears once it is read.
+  const refresh = useCallback(() => {
+    if (!isLoggedIn) { setUnread(0); return; }
+    api('/notifications/unread-count').then((r) => setUnread(r.unreadCount || 0)).catch(() => {});
+  }, [isLoggedIn]);
+
   useEffect(() => {
-    if (!isLoggedIn) { setPending(0); return; }
-    api('/applications/received')
-      .then((list) => setPending(list.filter((a) => a.status === 'Needs Review').length))
-      .catch(() => {});
-  }, [isLoggedIn, location.pathname]);
+    refresh();
+    if (!isLoggedIn) return undefined;
+    const timer = window.setInterval(refresh, POLL_MS);
+    const onFocus = () => refresh();
+    window.addEventListener('notifications:changed', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener('notifications:changed', onFocus); window.removeEventListener('focus', onFocus); };
+  }, [isLoggedIn, refresh, location.pathname]);
+
+  useEffect(() => { setNavOpen(false); setMenuOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
 
   const link = (path, label) => (
-    <button
-      onClick={() => navigate(path)}
-      style={{
-        padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '13px',
-        backgroundColor: isActive(path) ? '#fff7ed' : 'transparent',
-        color: isActive(path) ? BRAND : '#64748b',
-        fontWeight: isActive(path) ? '700' : '500',
-      }}
-    >
-      {label}
-    </button>
+    <button type="button" className={`nav__link${isActive(path) ? ' nav__link--on' : ''}`} onClick={() => navigate(path)}>{label}</button>
   );
 
   return (
-    <header style={{ backgroundColor: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1000, padding: '0 24px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-        <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <div style={{ backgroundColor: BRAND, color: '#fff', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🐾</div>
-          <span style={{ fontWeight: '800', fontSize: '18px', color: '#0f172a' }}>RescuePaws</span>
+    <header className="nav">
+      <div className="nav__inner">
+        <div className="nav__left">
+          <button type="button" className="nav__logo" onClick={() => navigate('/')} aria-label="RescuePaws home">
+            <span className="nav__logo-mark"><Icon name="paw" size={18} /></span>
+            <span className="nav__logo-text">RescuePaws</span>
+          </button>
+          <nav className={`nav__links${navOpen ? ' is-open' : ''}`} aria-label="Main">
+            {link('/', 'Home')}
+            {link('/browse', 'Browse')}
+            {link('/post', 'Post')}
+          </nav>
         </div>
-        <nav style={{ display: 'flex', gap: '4px' }}>
-          {link('/', 'Home')}
-          {link('/browse', 'Browse')}
-          {link('/post', 'Post')}
-        </nav>
-      </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        {isLoggedIn ? (
-          <>
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => navigate('/notifications')} title="Adoption requests" style={{ background: isActive('/notifications') ? '#fff7ed' : '#f1f5f9', border: isActive('/notifications') ? `1px solid ${BRAND}` : 'none', width: '38px', height: '38px', borderRadius: '50%', fontSize: '16px', cursor: 'pointer' }}>🔔</button>
-              {pending > 0 && (
-                <span style={{ position: 'absolute', top: '1px', right: '1px', backgroundColor: '#ef4444', color: '#fff', fontSize: '9px', fontWeight: 'bold', borderRadius: '10px', padding: '1px 5px', border: '2px solid #fff' }}>{pending}</span>
-              )}
-            </div>
+        <div className="nav__right">
+          {isLoggedIn ? (
+            <>
+              <button type="button" className={`nav__bell${isActive('/notifications') ? ' nav__bell--on' : ''}`} onClick={() => navigate('/notifications')}
+                aria-label={unread > 0 ? `Notifications, ${unread} new` : 'Notifications'} title="Notifications">
+                <Icon name="bell" size={19} />
+                {unread > 0 && <span className="nav__dot">{unread > 9 ? '9+' : unread}</span>}
+              </button>
 
-            <div style={{ position: 'relative' }}>
-              <div onClick={() => setShowDropdown(!showDropdown)} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: BRAND, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px' }}>
-                  {user?.name ? user.name[0].toUpperCase() : '?'}
-                </div>
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>{user?.name}</span>
-                <span style={{ fontSize: '10px', color: '#64748b' }}>▼</span>
+              <div className="nav__user" ref={menuRef}>
+                <button type="button" className="nav__user-btn" onClick={() => setMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={menuOpen}>
+                  {user?.avatar
+                    ? <img className="rp-avatar" src={user.avatar} alt="" style={{ width: 36, height: 36 }} />
+                    : <span className="rp-avatar" style={{ width: 36, height: 36, fontSize: 14 }}>{user?.name ? user.name[0].toUpperCase() : '?'}</span>}
+                  <span className="nav__user-name">{user?.name}</span>
+                </button>
+                {menuOpen && (
+                  <div className="nav__menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/profile'); }}><Icon name="user" size={16} /> My Profile</button>
+                    <button type="button" role="menuitem" className="is-danger" onClick={() => { setMenuOpen(false); setLogoutConfirmOpen(true); }}><Icon name="logout" size={16} /> Log Out</button>
+                  </div>
+                )}
               </div>
-              {showDropdown && (
-                <div style={{ position: 'absolute', right: 0, top: '46px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '150px', overflow: 'hidden' }}>
-                  <button onClick={() => { navigate('/profile'); setShowDropdown(false); }} style={{ width: '100%', padding: '10px 12px', border: 'none', background: 'transparent', color: '#334155', fontWeight: '600', fontSize: '12px', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>👤 My Profile</button>
-                  <button onClick={() => { setShowDropdown(false); onLogout(); navigate('/login'); }} style={{ width: '100%', padding: '10px 12px', border: 'none', background: 'transparent', color: '#ef4444', fontWeight: '700', fontSize: '12px', textAlign: 'left', cursor: 'pointer' }}>🚪 Log Out</button>
-                </div>
-              )}
+            </>
+          ) : (
+            <div className="nav__auth">
+              <button type="button" className="rp-btn rp-btn--ghost rp-btn--sm" onClick={() => navigate('/login')}>Log In</button>
+              <button type="button" className="rp-btn rp-btn--primary rp-btn--sm" onClick={() => navigate('/register')}>Sign Up</button>
             </div>
-          </>
-        ) : (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => navigate('/login')} style={{ padding: '7px 14px', border: 'none', background: 'transparent', color: BRAND, fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>Log In</button>
-            <button onClick={() => navigate('/register')} style={{ padding: '7px 14px', border: 'none', backgroundColor: BRAND, color: '#fff', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>Sign Up</button>
-          </div>
-        )}
+          )}
+          <button type="button" className="nav__burger" onClick={() => setNavOpen((o) => !o)} aria-label="Menu" aria-expanded={navOpen}><Icon name={navOpen ? 'x' : 'menu'} size={20} /></button>
+        </div>
       </div>
+      {logoutConfirmOpen && createPortal(
+        <Modal
+          title="Log out?"
+          subtitle="Are you sure you want to log out?"
+          icon="logout"
+          onClose={() => setLogoutConfirmOpen(false)}
+          footer={(
+            <>
+              <button type="button" className="rp-btn rp-btn--ghost" autoFocus onClick={() => setLogoutConfirmOpen(false)}>Cancel</button>
+              <button type="button" className="rp-btn rp-btn--solid-danger" onClick={confirmLogout}>Sure</button>
+            </>
+          )}
+        />,
+        document.body,
+      )}
     </header>
   );
 }

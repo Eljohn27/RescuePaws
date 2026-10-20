@@ -7,16 +7,21 @@ import { serializeNotification } from "../utils/serializers.js";
 // @access  Private (own notifications only)
 export const getNotifications = asyncHandler(async (req, res) => {
   const [items, unreadCount] = await Promise.all([
-    Notification.find({ user: req.userId }).sort({ createdAt: -1 }).limit(50),
+    Notification.find({ user: req.userId }).sort({ createdAt: -1 }).limit(100),
     Notification.countDocuments({ user: req.userId, isRead: false }),
   ]);
   res.json({ notifications: items.map(serializeNotification), unreadCount });
 });
 
+// @route   GET /api/notifications/unread-count   (cheap call the navbar polls for the red dot)
+export const getUnreadCount = asyncHandler(async (req, res) => {
+  res.json({ unreadCount: await Notification.countDocuments({ user: req.userId, isRead: false }) });
+});
+
 // @route   PATCH /api/notifications/read-all
 export const markAllRead = asyncHandler(async (req, res) => {
   await Notification.updateMany({ user: req.userId, isRead: false }, { isRead: true });
-  res.json({ message: "All notifications marked as read" });
+  res.json({ message: "All notifications marked as read", unreadCount: 0 });
 });
 
 // @route   PATCH /api/notifications/:id/read

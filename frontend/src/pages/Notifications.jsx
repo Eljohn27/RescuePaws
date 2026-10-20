@@ -1,100 +1,179 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, pingNotifications } from '../api';
+import Icon from '../components/Icons';
+import Modal from '../components/Modal';
+import './Notifications.css';
 
-const BRAND = '#9E4624';
+const POLL_MS = 10000;
+const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', System: 'info' };
 const STATUS = {
   'Needs Review': { text: 'Waiting for you', bg: '#fef3c7', color: '#92400e' },
-  Approved: { text: 'Approved · pet adopted', bg: '#dcfce7', color: '#166534' },
+  Approved: { text: 'Approved, pet adopted', bg: '#dcfce7', color: '#166534' },
   Rejected: { text: 'Declined', bg: '#fee2e2', color: '#b91c1c' },
 };
 
-// The bell page: someone wants to adopt one of MY pets. I approve or decline.
+// Everything that happens to me: admin decisions on my posts, adoption requests, reports. It refreshes by itself.
 export default function Notifications() {
   const navigate = useNavigate();
+  const [items, setItems] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState({ text: '', bad: false });
+  const [tab, setTab] = useState('all');
+  const [answering, setAnswering] = useState(null); // { request, status }
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+  const alive = useRef(true);
+  const first = useRef(true);
 
-  const say = (text, bad = false) => { setMessage({ text, bad }); setTimeout(() => setMessage({ text: '', bad: false }), 5000); };
-  const load = () => api('/applications/received').then(setRequests).catch((e) => say(e.message, true)).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const say = (msg, bad = false) => { setToast({ msg, bad }); setTimeout(() => setToast(null), 5000); };
 
-  const answer = async (r, status) => {
-    let reviewNote = '';
-    if (status === 'Approved') {
-      if (!window.confirm(`Approve ${r.applicant} to adopt ${r.animal}?\n\n${r.animal} will be marked as adopted and removed from Browse. Other requests for this pet will be declined.`)) return;
-    } else {
-      const reason = window.prompt('Reason for declining? (optional, the adopter will see it)');
-      if (reason === null) return;
-      reviewNote = reason;
-    }
+  const load = useCallback(async () => {
     try {
-      await api(`/applications/${r.id}/review`, { method: 'PATCH', body: { status, reviewNote } });
-      say(status === 'Approved' ? `${r.animal} is now marked as adopted. Congratulations!` : 'Request declined.');
-      load();
-    } catch (e) { say(e.message, true); }
+      const [n, r] = await Promise.all([api('/notifications'), api('/applications/received')]);
+      if (!alive.current) return;
+      setItems(n.notifications);
+      setRequests(r);
+    } catch (e) { if (alive.current && first.current) say(e.message, true); } finally { first.current = false; if (alive.current) setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    load();
+    const timer = setInterval(load, POLL_MS);
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => { alive.current = false; clearInterval(timer); window.removeEventListener('focus', onFocus); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const unread = items.filter((i) => i.unread).length;
+
+  const readOne = async (n) => {
+    if (!n.unread) return;
+    setItems((list) => list.map((i) => (i._id === n._id ? { ...i, unread: false } : i)));
+    try { await api(`/notifications/${n._id}/read`, { method: 'PATCH' }); } catch { /* the next refresh corrects it */ }
+    pingNotifications();
+  };
+
+  const readAll = async () => {
+    setItems((list) => list.map((i) => ({ ...i, unread: false })));
+    try { await api('/notifications/read-all', { method: 'PATCH' }); } catch (e) { say(e.message, true); }
+    pingNotifications();
+  };
+
+  const confirmAnswer = async () => {
+    const { request, status } = answering;
+    setBusy(true);
+    try {
+      await api(`/applications/${request.id}/review`, { method: 'PATCH', body: { status, reviewNote: status === 'Rejected' ? reason.trim() : '' } });
+      say(status === 'Approved' ? `${request.animal} is now marked as adopted. Congratulations!` : 'Request declined. The adopter was notified.');
+      setAnswering(null); setReason('');
+      await load();
+      pingNotifications();
+    } catch (e) { say(e.message, true); } finally { setBusy(false); }
   };
 
   const waiting = requests.filter((r) => r.status === 'Needs Review');
-  const answered = requests.filter((r) => r.status !== 'Needs Review');
-
-  const Row = ({ r }) => {
-    const st = STATUS[r.status] || STATUS['Needs Review'];
-    const d = r.details || {};
-    return (
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        <img src={r.img} alt={r.animal} style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: '10px' }} />
-        <div style={{ flex: 1, minWidth: '220px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-            <strong style={{ fontSize: '15px', color: '#0f172a' }}>{r.applicant} wants to adopt {r.animal}</strong>
-            <span style={{ background: st.bg, color: st.color, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '700' }}>{st.text}</span>
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>{r.date}</div>
-          <div style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '8px', padding: '8px 10px', fontSize: '12px', color: '#334155', lineHeight: 1.6 }}>
-            <div>📞 {r.contact.phone} · ✉️ {r.contact.email}</div>
-            <div>📍 {r.contact.address}</div>
-            {d.notesToFoster && <div>💬 {d.notesToFoster}</div>}
-          </div>
-          {r.status === 'Needs Review' && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-              <button onClick={() => answer(r, 'Approved')} style={{ background: '#047857', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>✓ Approve adoption</button>
-              <button onClick={() => answer(r, 'Rejected')} style={{ background: '#fff', color: '#b91c1c', border: '1px solid #fca5a5', padding: '8px 14px', borderRadius: '8px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>Decline</button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const shown = tab === 'unread' ? items.filter((i) => i.unread) : items;
 
   return (
-    <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px 20px 60px', textAlign: 'left', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <h1 style={{ margin: '0 0 4px', fontSize: '26px', color: '#0f172a' }}>Notifications</h1>
-      <p style={{ margin: '0 0 18px', color: '#64748b', fontSize: '14px' }}>People who want to adopt the pets you posted.</p>
-
-      {message.text && <div style={{ marginBottom: '14px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: message.bad ? '#fee2e2' : '#dcfce7', color: message.bad ? '#b91c1c' : '#166534' }}>{message.text}</div>}
-      {loading && <p style={{ color: '#64748b' }}>Loading...</p>}
-
-      {!loading && requests.length === 0 && (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '30px', textAlign: 'center', color: '#64748b' }}>
-          <div style={{ fontSize: '32px' }}>⩍</div>
-          <p style={{ margin: '8px 0 14px' }}>No adoption requests yet.</p>
-          <button onClick={() => navigate('/post')} style={{ background: BRAND, color: '#fff', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Post a pet</button>
+    <div className="nt rp-page">
+      <div className="nt__top">
+        <div>
+          <h1>Notifications</h1>
+          <p>Updates on your posts, adoption requests and reports.</p>
         </div>
-      )}
+        <button type="button" className="rp-btn rp-btn--ghost rp-btn--sm" onClick={readAll} disabled={!unread}><Icon name="check" size={14} stroke={3} /> Mark all as read</button>
+      </div>
+
+      {loading && <p style={{ color: '#64748b' }}>Loading...</p>}
 
       {waiting.length > 0 && (
         <>
-          <h3 style={{ fontSize: '13px', letterSpacing: '0.5px', color: '#64748b', margin: '0 0 10px' }}>WAITING FOR YOU ({waiting.length})</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>{waiting.map((r) => <Row key={r.id} r={r} />)}</div>
+          <h2 className="nt__h">Adoption requests waiting for you ({waiting.length})</h2>
+          <div className="nt__list">
+            {waiting.map((r) => {
+              const st = STATUS[r.status];
+              const d = r.details || {};
+              return (
+                <div className="nt__req" key={r.id}>
+                  <img src={r.img} alt={r.animal} />
+                  <div className="nt__req-body">
+                    <div className="nt__req-head">
+                      <strong>{r.applicant} wants to adopt {r.animal}</strong>
+                      <span className="rp-badge" style={{ background: st.bg, color: st.color }}>{st.text}</span>
+                    </div>
+                    <div className="rp-hint">{r.date}</div>
+                    <div className="nt__req-info">
+                      <div>Phone: {r.contact.phone}</div>
+                      <div>Email: {r.contact.email}</div>
+                      <div>Address: {r.contact.address}</div>
+                      {d.notesToFoster && <div>Message: {d.notesToFoster}</div>}
+                    </div>
+                    <div className="nt__req-actions">
+                      <button type="button" className="rp-btn rp-btn--ok rp-btn--sm" onClick={() => setAnswering({ request: r, status: 'Approved' })}><Icon name="check" size={14} stroke={3} /> Approve adoption</button>
+                      <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => { setReason(''); setAnswering({ request: r, status: 'Rejected' }); }}>Decline</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
-      {answered.length > 0 && (
-        <>
-          <h3 style={{ fontSize: '13px', letterSpacing: '0.5px', color: '#64748b', margin: '0 0 10px' }}>ANSWERED</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>{answered.map((r) => <Row key={r.id} r={r} />)}</div>
-        </>
+
+      <h2 className="nt__h">Activity</h2>
+      <div className="nt__tabs">
+        <button type="button" className={`nt__tab${tab === 'all' ? ' is-on' : ''}`} onClick={() => setTab('all')}>All<small>{items.length}</small></button>
+        <button type="button" className={`nt__tab${tab === 'unread' ? ' is-on' : ''}`} onClick={() => setTab('unread')}>Unread<small>{unread}</small></button>
+      </div>
+
+      {!loading && shown.length === 0 && (
+        <div className="nt__empty">
+          <Icon name="bell" size={30} />
+          <p style={{ margin: '10px 0 14px' }}>{tab === 'unread' ? 'You are all caught up.' : 'Nothing here yet. Updates about your posts will show up here.'}</p>
+          {tab === 'all' && <button type="button" className="rp-btn rp-btn--primary rp-btn--sm" onClick={() => navigate('/post')}>Create a post</button>}
+        </div>
       )}
+
+      <div className="nt__list">
+        {shown.map((n) => (
+          <button type="button" key={n._id} className={`nt__item${n.unread ? ' is-unread' : ''}`} onClick={() => readOne(n)} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}>
+            <span className={`nt__icon nt__icon--${n.category}`}><Icon name={ICON[n.category] || 'info'} size={19} /></span>
+            <span className="nt__text">
+              <span className="nt__title"><strong>{n.title}</strong><time>{n.time}</time></span>
+              {n.message && <p className="nt__msg">{n.message}</p>}
+            </span>
+            {n.unread && <span className="nt__dot" aria-hidden="true" />}
+          </button>
+        ))}
+      </div>
+
+      {answering && (
+        <Modal onClose={() => !busy && setAnswering(null)} icon={answering.status === 'Approved' ? 'heart' : 'flag'} tone={answering.status === 'Approved' ? 'ok' : 'bad'}
+          title={answering.status === 'Approved' ? `Approve ${answering.request.applicant}?` : `Decline ${answering.request.applicant}?`}
+          subtitle={answering.status === 'Approved'
+            ? `${answering.request.animal} will be marked as adopted and removed from Browse. Other requests for this pet will be declined.`
+            : 'The adopter will be notified. You can add a short reason they will see.'}
+          footer={(
+            <>
+              <button type="button" className="rp-btn rp-btn--ghost" disabled={busy} onClick={() => setAnswering(null)}>Cancel</button>
+              <button type="button" className={`rp-btn ${answering.status === 'Approved' ? 'rp-btn--ok' : 'rp-btn--solid-danger'}`} disabled={busy} onClick={confirmAnswer}>
+                {busy ? 'Saving...' : answering.status === 'Approved' ? 'Yes, approve' : 'Decline request'}
+              </button>
+            </>
+          )}>
+          {answering.status === 'Rejected' && (
+            <div className="rp-field">
+              <div className="rp-label__row"><label className="rp-label" htmlFor="decline-reason">Reason <span className="rp-opt">(optional)</span></label><span className="rp-counter">{reason.length}/500</span></div>
+              <textarea id="decline-reason" className="rp-input" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+            </div>
+          )}
+        </Modal>
+      )}
+      {toast && <div className={`rp-toast rp-toast--${toast.bad ? 'bad' : 'ok'}`} role="status">{toast.msg}</div>}
     </div>
   );
 }

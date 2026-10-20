@@ -4,6 +4,8 @@ import Sighting from "../models/Sighting.js";
 import AdoptionPost from "../models/AdoptionPost.js";
 import AdoptionApplication from "../models/AdoptionApplication.js";
 import RescueProof from "../models/RescueProof.js";
+import Report from "../models/Report.js";
+import PasswordChallenge from "../models/PasswordChallenge.js";
 import Notification from "../models/Notification.js";
 import AuditLog from "../models/AuditLog.js";
 import ApiError from "../utils/ApiError.js";
@@ -18,7 +20,7 @@ const countBy = (Model, field) => Model.aggregate([{ $group: { _id: `$${field}`,
 // @route   GET /api/admin/stats
 // @access  Private (admin only)
 export const getStats = asyncHandler(async (req, res) => {
-  const [users, sightings, adoptionPosts, applications, foster, onBrowseFosters, adopted, proofs] = await Promise.all([
+  const [users, sightings, adoptionPosts, applications, foster, onBrowseFosters, adopted, proofs, openReports] = await Promise.all([
     User.countDocuments(),
     countBy(Sighting, "moderationStatus"),
     countBy(AdoptionPost, "moderationStatus"),
@@ -27,6 +29,7 @@ export const getStats = asyncHandler(async (req, res) => {
     AdoptionPost.countDocuments({ moderationStatus: "Approved", listingStatus: { $ne: "Adopted" } }),
     AdoptionPost.countDocuments({ listingStatus: "Adopted" }),
     countBy(RescueProof, "status"),
+    Report.countDocuments({ status: "Open" }),
   ]);
   const bySighting = toMap(sightings);
   const byPost = toMap(adoptionPosts);
@@ -46,6 +49,7 @@ export const getStats = asyncHandler(async (req, res) => {
     adoptionPosts: { total: sum(byPost), byModeration: byPost },
     applications: toMap(applications),
     proofs: toMap(proofs),
+    reports: { open: openReports },
   });
 });
 
@@ -106,6 +110,8 @@ export const deleteUser = asyncHandler(async (req, res) => {
     Notification.deleteMany({ user: user._id }),
     AdoptionApplication.deleteMany({ applicant: user._id }),
     RescueProof.deleteMany({ submittedBy: user._id }),
+    PasswordChallenge.deleteMany({ user: user._id }),
+    Report.deleteMany({ reporter: user._id, status: "Open" }),
   ]);
   audit(req, "user.delete", { resource: "user", resourceId: user._id });
   res.json({ message: "User deleted" });

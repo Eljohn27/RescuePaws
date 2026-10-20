@@ -17,6 +17,44 @@ export const loginLimiter = make({
   message: "Too many login attempts, please try again later",
 });
 
+export const resendOtpLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 3,
+  message: "Too many code requests. Please wait before trying again.",
+});
+
+export const resendRegistrationOtpLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 3,
+  message: "Too many verification code requests. Please wait before trying again.",
+});
+
+export const verifyRegistrationOtpLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  message: "Too many verification attempts. Please try again later.",
+});
+
+export const forgotPasswordLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: "Too many password reset requests. Please wait before trying again.",
+});
+
+export const resetPasswordLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  message: "Too many attempts. Please wait before trying again.",
+});
+
+export const passwordChangeLimiter = make({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  message: "Too many password change attempts. Please wait before trying again.",
+});
+
 export const registerLimiter = make({
   windowMs: 60 * 60 * 1000,
   limit: env.authRateLimitMax,

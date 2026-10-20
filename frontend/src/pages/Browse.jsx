@@ -1,100 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import ImagePicker from '../components/ImagePicker';
+import Icon from '../components/Icons';
+import Modal from '../components/Modal';
+import SightingMap from '../components/SightingMap';
+import PostCard, { fromSighting, fromAdoption } from '../components/PostCard';
+import { RequestForm, ProofForm, ReportForm } from '../components/PostActions';
+import './Browse.css';
 
-const BRAND = '#9E4624';
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+// Dogs / Cats pick the animal, Sight / Foster pick the kind of post. Any mix can be chosen at once.
+const ANIMAL_CATS = [['Dog', 'Dogs'], ['Cat', 'Cats']];
+const KIND_CATS = [['stray', 'Sight'], ['foster', 'Foster']];
 
-const field = { width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', boxSizing: 'border-box', fontFamily: 'inherit' };
-const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', margin: '12px 0 6px' };
-const button = { backgroundColor: BRAND, color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' };
-const clamp = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
-
-// One common card shape for both kinds of post
-const fromSighting = (s) => ({ key: `s-${s._id}`, kind: 'stray', id: s._id, animal: s.animalType, image: s.image, mine: s.isMine, title: s.name, location: s.location, time: s.time, text: s.description, createdAt: s.createdAt });
-const fromAdoption = (p) => ({ key: `a-${p._id}`, kind: 'foster', id: p._id, animal: p.animalType, image: p.image, mine: p.isMine, title: p.petName, location: p.location, time: p.time, text: p.description, createdAt: p.createdAt });
-
-function Modal({ title, subtitle, onClose, children }) {
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
+function Cat({ label, on, onClick, n }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', padding: '22px', width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', fontFamily: FONT }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>{title}</h3>
-            {subtitle && <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>{subtitle}</p>}
-          </div>
-          <button onClick={onClose} aria-label="Close" style={{ border: 'none', background: 'transparent', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// FOSTER: request to adopt (goes to the poster)
-function RequestForm({ item, user, onDone }) {
-  const [f, setF] = useState({ fullName: user?.name || '', phone: '', email: user?.email || '', address: '', notes: '' });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-
-  const submit = async () => {
-    setBusy(true); setError('');
-    try {
-      await api(`/adoptions/${item.id}/applications`, { method: 'POST', body: f });
-      onDone(item, `Request sent to ${item.title}'s poster.`);
-    } catch (e) { setError(e.message); setBusy(false); }
-  };
-
-  return (
-    <>
-      <label style={labelStyle}>Full name</label>
-      <input style={field} value={f.fullName} onChange={set('fullName')} />
-      <label style={labelStyle}>Phone</label>
-      <input style={field} value={f.phone} onChange={set('phone')} placeholder="09XX XXX XXXX" />
-      <label style={labelStyle}>Email</label>
-      <input style={field} value={f.email} onChange={set('email')} />
-      <label style={labelStyle}>Address</label>
-      <input style={field} value={f.address} onChange={set('address')} />
-      <label style={labelStyle}>Message (optional)</label>
-      <textarea style={{ ...field, minHeight: '64px' }} value={f.notes} onChange={set('notes')} placeholder="Tell the poster why you'd be a good home." />
-      {error && <div style={{ color: '#b91c1c', fontSize: '12px', marginTop: '10px' }}>{error}</div>}
-      <button onClick={submit} disabled={busy} style={{ ...button, width: '100%', marginTop: '16px', opacity: busy ? 0.6 : 1 }}>{busy ? 'Sending...' : 'Send Request'}</button>
-    </>
-  );
-}
-
-// STRAY: proof that I adopted it (goes to the admin)
-function ProofForm({ item, onDone }) {
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const submit = async () => {
-    setBusy(true); setError('');
-    try {
-      await api(`/sightings/${item.id}/proofs`, { method: 'POST', body: { photoUrl, message } });
-      onDone(item, 'Proof sent. An admin will review it.');
-    } catch (e) { setError(e.message); setBusy(false); }
-  };
-
-  const ready = photoUrl && message.trim().length >= 3;
-  return (
-    <>
-      <div style={{ marginTop: '14px' }}><ImagePicker label="Photo of you with the pet" value={photoUrl} onChange={setPhotoUrl} /></div>
-      <label style={labelStyle}>Message</label>
-      <textarea style={{ ...field, minHeight: '72px' }} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. I took him home today and he is safe." />
-      {error && <div style={{ color: '#b91c1c', fontSize: '12px', marginTop: '10px' }}>{error}</div>}
-      <button onClick={submit} disabled={busy || !ready} style={{ ...button, width: '100%', marginTop: '16px', opacity: busy || !ready ? 0.5 : 1 }}>{busy ? 'Sending...' : 'Send Proof'}</button>
-    </>
+    <button type="button" className={`browse__cat${on ? ' is-on' : ''}`} onClick={onClick} aria-pressed={on}>
+      <span className="browse__cat-left"><span className="browse__tick"><Icon name="check" size={12} stroke={3.5} /></span>{label}</span>
+      <span className="browse__cat-count">{n}</span>
+    </button>
   );
 }
 
@@ -103,84 +26,130 @@ export default function Browse({ isLoggedIn, user }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('all'); // all | stray | foster
-  const [modal, setModal] = useState(null);
-  const [sent, setSent] = useState([]); // cards I already sent something for
-  const [toast, setToast] = useState('');
+  const [animals, setAnimals] = useState([]);
+  const [kinds, setKinds] = useState([]);
+  const [modal, setModal] = useState(null); // { type: 'respond' | 'report', item }
+  const [sent, setSent] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [showMap, setShowMap] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => (
+    typeof window === 'undefined' || window.sessionStorage.getItem('browseWelcomeMinimized') !== 'true'
+  ));
+
+  const minimizeWelcome = () => {
+    window.sessionStorage.setItem('browseWelcomeMinimized', 'true');
+    setShowWelcome(false);
+  };
+
+  const restoreWelcome = () => {
+    window.sessionStorage.removeItem('browseWelcomeMinimized');
+    setShowWelcome(true);
+  };
 
   useEffect(() => {
     Promise.all([api('/sightings?limit=100'), api('/adoptions?limit=100')])
-      .then(([s, a]) => setItems([...s.map(fromSighting), ...a.map(fromAdoption)].sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))))
+      .then(([s, a]) => setItems([...s.map(fromSighting), ...a.map(fromAdoption)].sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt)))) // newest on top
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const shown = items.filter((i) => tab === 'all' || i.kind === tab);
-  const open = (item) => (isLoggedIn ? setModal(item) : navigate('/login'));
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const toggle = (list, setList, value) => setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  const shown = useMemo(
+    () => items.filter((i) => (!animals.length || animals.includes(i.animal)) && (!kinds.length || kinds.includes(i.kind))),
+    [items, animals, kinds]
+  );
+  const count = (test) => items.filter(test).length;
+  const noFilter = !animals.length && !kinds.length;
+
+  const respond = (item) => (isLoggedIn ? setModal({ type: 'respond', item }) : navigate('/login'));
+  const report = (item) => (isLoggedIn ? setModal({ type: 'report', item }) : navigate('/login'));
   const done = (item, msg) => {
     setModal(null);
-    setSent((s) => [...s, item.key]);
-    setToast(msg);
-    setTimeout(() => setToast(''), 5000);
+    if (modal?.type === 'respond') setSent((s) => [...s, item.key]);
+    setToast({ msg, bad: false });
   };
 
-  const tabs = [['all', 'All'], ['stray', 'Strays'], ['foster', 'For Adoption']];
-
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '28px 20px 60px', textAlign: 'left', fontFamily: FONT }}>
-      <h1 style={{ margin: '0 0 16px', fontSize: '26px', color: '#0f172a' }}>Browse</h1>
+    <div className="browse rp-page">
+      <aside className="browse__side">
+        <div className="browse__panel">
+          <h2>Categories</h2>
+          <p>Pick one or more to narrow the feed.</p>
+          <div className="browse__cats">
+            <Cat label="All" on={noFilter} n={items.length} onClick={() => { setAnimals([]); setKinds([]); }} />
+            <div className="browse__divider" />
+            {ANIMAL_CATS.map(([v, label]) => <Cat key={v} label={label} on={animals.includes(v)} n={count((i) => i.animal === v)} onClick={() => toggle(animals, setAnimals, v)} />)}
+            {KIND_CATS.map(([v, label]) => <Cat key={v} label={label} on={kinds.includes(v)} n={count((i) => i.kind === v)} onClick={() => toggle(kinds, setKinds, v)} />)}
+          </div>
+        </div>
+        <button type="button" className="rp-btn rp-btn--ghost rp-btn--block" onClick={() => setShowMap((v) => !v)}>
+          <Icon name="map" size={16} /> {showMap ? 'Hide map' : 'Show map'}
+        </button>
+      </aside>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '22px' }}>
-        {tabs.map(([id, name]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ padding: '8px 18px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: tab === id ? '700' : '500', backgroundColor: tab === id ? BRAND : '#f1f5f9', color: tab === id ? '#fff' : '#475569' }}>{name}</button>
-        ))}
-      </div>
-
-      {toast && <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '8px', background: '#dcfce7', color: '#166534', fontSize: '13px' }}>{toast}</div>}
-      {loading && <p style={{ color: '#64748b' }}>Loading...</p>}
-      {error && <p style={{ color: '#b91c1c' }}>Could not load posts. Is the backend running?</p>}
-      {!loading && !error && shown.length === 0 && <p style={{ color: '#64748b' }}>Nothing to show yet.</p>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
-        {shown.map((i) => {
-          const isStray = i.kind === 'stray';
-          const alreadySent = sent.includes(i.key);
-          return (
-            <div key={i.key} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ position: 'relative', height: '190px' }}>
-                <img src={i.image} alt={i.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <span style={{ position: 'absolute', top: '10px', left: '10px', background: '#fff', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', fontWeight: '700', color: '#0f172a' }}>
-                  {isStray ? 'Stray' : 'For adoption'}
-                </span>
-              </div>
-              <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: '16px', color: '#0f172a' }}>{i.title}</h3>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>📍 {i.location} · {i.time}</div>
-                {i.text && <p style={{ ...clamp, margin: '0 0 14px', fontSize: '13px', color: '#334155', lineHeight: 1.45 }}>{i.text}</p>}
-                <div style={{ marginTop: 'auto' }}>
-                  {i.mine ? (
-                    <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', textAlign: 'center', padding: '10px 0' }}>Your post</div>
-                  ) : (
-                    <button onClick={() => open(i)} disabled={alreadySent} style={{ ...button, width: '100%', opacity: alreadySent ? 0.5 : 1, cursor: alreadySent ? 'default' : 'pointer' }}>
-                      {alreadySent ? 'Sent ✓' : isStray ? 'Adopted' : 'Request'}
-                    </button>
-                  )}
-                </div>
-              </div>
+      <main>
+        {showWelcome ? (
+          <section className="browse__hello">
+            <button type="button" className="browse__hello-close" onClick={minimizeWelcome} aria-label="Minimize welcome message" title="Minimize welcome message">
+              <Icon name="x" size={17} />
+            </button>
+            <h1>Every paw deserves a home</h1>
+            <p>Say hello to the strays and foster pets of Dagupan City. Follow a poster, send an adoption request, or share a sighting to help someone find safety.</p>
+            <div className="browse__hello-actions">
+              <button type="button" className="rp-btn rp-btn--light" onClick={() => navigate('/post')}>Post a sighting or foster pet</button>
             </div>
-          );
-        })}
-      </div>
+          </section>
+        ) : (
+          <div className="browse__hello-minimized">
+            <button type="button" className="browse__hello-reopen" onClick={restoreWelcome}>
+              <Icon name="sparkles" size={15} /> Show welcome message
+            </button>
+          </div>
+        )}
 
-      {modal && (
-        <Modal
-          title={modal.kind === 'stray' ? 'Proof of adoption' : `Request to adopt ${modal.title}`}
-          subtitle={modal.kind === 'stray' ? 'Show the admin that you took in this stray.' : 'Your request goes to the person who posted this pet.'}
-          onClose={() => setModal(null)}
-        >
-          {modal.kind === 'stray' ? <ProofForm item={modal} onDone={done} /> : <RequestForm item={modal} user={user} onDone={done} />}
+        {showMap && !loading && (
+          <section className="browse__map">
+            <h2>Pet and sighting locations</h2>
+            <p>Approved sightings and available foster listings in Dagupan City. Select a pin for details.</p>
+            <SightingMap sightings={shown} />
+          </section>
+        )}
+
+        {loading && <p style={{ color: '#64748b' }}>Loading posts...</p>}
+        {error && <div className="rp-alert rp-alert--bad">Could not load posts. Is the backend running?</div>}
+        {!loading && !error && shown.length === 0 && (
+          <div className="browse__empty">
+            <Icon name="paw" size={30} />
+            <p style={{ margin: '10px 0 0' }}>{items.length ? 'No posts match these categories yet.' : 'No posts yet. Be the first to share one!'}</p>
+          </div>
+        )}
+
+        <div className="browse__feed">
+          {shown.map((i) => (
+            <PostCard key={i.key} item={i} meId={user?._id} isLoggedIn={isLoggedIn} alreadySent={sent.includes(i.key)} onAction={respond} onReport={report} />
+          ))}
+        </div>
+      </main>
+
+      {modal?.type === 'respond' && (
+        <Modal onClose={() => setModal(null)} icon="heart"
+          title={modal.item.kind === 'stray' ? 'Proof of adoption' : `Request to adopt ${modal.item.title}`}
+          subtitle={modal.item.kind === 'stray' ? 'Show the admin that you took in this stray.' : 'Your request goes to the person who posted this pet.'}>
+          {modal.item.kind === 'stray' ? <ProofForm item={modal.item} onDone={done} /> : <RequestForm item={modal.item} user={user} onDone={done} />}
         </Modal>
       )}
+      {modal?.type === 'report' && (
+        <Modal onClose={() => setModal(null)} icon="flag" tone="bad" title="Report this post" subtitle="Tell us what is wrong. An admin will review it and the poster will not see who reported.">
+          <ReportForm item={modal.item} onDone={done} />
+        </Modal>
+      )}
+      {toast && <div className={`rp-toast rp-toast--${toast.bad ? 'bad' : 'ok'}`} role="status">{toast.msg}</div>}
     </div>
   );
 }

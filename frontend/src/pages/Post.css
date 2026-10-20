@@ -1,0 +1,19 @@
+.post { max-width: 620px; margin: 0 auto; padding: 30px 18px 70px; }
+.post h1 { margin: 0 0 4px; font-size: 28px; color: var(--ink-strong); }
+.post__lead { margin: 0; color: var(--muted); font-size: 14px; }
+.post__kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0 6px; }
+.post__kinds button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: #475569; cursor: pointer; text-align: center; transition: border-color .15s, background .15s; }
+.post__kinds button strong { font-size: 15px; }
+.post__kinds button span { font-size: 11px; color: #94a3b8; }
+.post__kinds button.is-on { border: 2px solid var(--brand); background: var(--brand-soft); color: var(--brand); padding: 15px 9px; }
+.post__kinds button.is-on span { color: var(--brand); opacity: .8; }
+.post__form { margin-top: 20px; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px 20px; }
+.post__choice { display: flex; gap: 8px; flex-wrap: wrap; }
+.post__choice button { flex: 1; min-width: 80px; padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #475569; font-size: 13px; font-weight: 600; cursor: pointer; }
+.post__choice button.is-on { border: 2px solid var(--brand); background: var(--brand-soft); color: var(--brand); padding: 9px; }
+.post--done { text-align: center; padding-top: 60px; }
+.post__done-icon { width: 68px; height: 68px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.post--done h2 { color: var(--ink-strong); margin: 0 0 8px; }
+.post--done p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.post__done-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+@media (max-width: 480px) { .post__form { padding: 18px 14px; } .post h1 { font-size: 24px; } }

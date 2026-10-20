@@ -8,6 +8,7 @@ import { notify, notifyAdmins } from "../utils/notify.js";
 import { getPaging } from "../utils/pagination.js";
 import { forbid, isAdmin, isOwner } from "../utils/guards.js";
 import { serializeApplication } from "../utils/serializers.js";
+import { isDagupanAdoption } from "../utils/pangasinanLocations.js";
 
 const POST_POPULATE = { path: "post", select: "petName animalType age breed photoUrl owner listingStatus", populate: { path: "owner", select: "name" } };
 
@@ -19,6 +20,7 @@ export const submitApplication = asyncHandler(async (req, res) => {
   if (!post || post.moderationStatus !== "Approved") throw new ApiError(404, "Adoption listing not found");
   if (isOwner(post.owner, req.userId)) throw new ApiError(400, "You cannot apply to your own listing");
   if (post.listingStatus === "Adopted") throw new ApiError(409, "This pet has already been adopted");
+  if (!isDagupanAdoption(post)) throw new ApiError(409, "This pet is unavailable because its location is not confirmed in Dagupan City");
 
   const data = matchedData(req, { locations: ["body"] });
   let application;

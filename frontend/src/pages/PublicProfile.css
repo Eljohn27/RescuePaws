@@ -1,0 +1,12 @@
+.pp { max-width: 760px; margin: 0 auto; padding: 20px 18px 70px; }
+.pp__back { margin-bottom: 10px; font-size: 13px; }
+.pp__card { display: flex; gap: 20px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 24px; margin-bottom: 26px; }
+.pp__info { min-width: 0; flex: 1; }
+.pp__info h1 { margin: 0 0 4px; font-size: 24px; color: var(--ink-strong); }
+.pp__since { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.pp__stats { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+.pp__stats div { display: flex; flex-direction: column; }
+.pp__stats strong { font-size: 22px; color: var(--brand); }
+.pp__stats span { font-size: 12px; color: var(--muted); }
+.pp__title { font-size: 18px; color: var(--ink-strong); margin: 0 0 14px; }
+@media (max-width: 520px) { .pp__card { flex-direction: column; text-align: center; } .pp__since { justify-content: center; } .pp__stats { justify-content: center; } }
