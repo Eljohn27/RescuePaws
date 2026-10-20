@@ -1,5 +1,5 @@
 // One place that talks to the backend. Every admin page uses this.
-const API = 'http://localhost:5000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export async function api(path, { method = 'GET', body } = {}) {
   const token = localStorage.getItem('adminToken');
