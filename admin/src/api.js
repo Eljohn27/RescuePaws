@@ -1,12 +1,13 @@
 // One place that talks to the backend. Every admin page uses this.
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, signal } = {}) {
   const token = localStorage.getItem('adminToken');
   const res = await fetch(API + path, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error((data && data.message) || 'Something went wrong');

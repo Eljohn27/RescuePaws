@@ -47,6 +47,8 @@
 .pc__flag:hover { background: #fef2f2; color: var(--bad); }
 .pc__photo { position: relative; background: #f1ebe4; }
 .pc__photo img { display: block; width: 100%; height: clamp(260px, 46vw, 460px); object-fit: cover; }
+.pc__photo-button { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.pc__photo-button:focus-visible { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .pc__kind { position: absolute; top: 14px; left: 14px; padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 800; color: #fff; }
 .pc__kind--stray { background: #0284c7; }
 .pc__kind--foster { background: #e11d48; }

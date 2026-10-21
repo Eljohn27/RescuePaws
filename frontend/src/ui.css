@@ -71,6 +71,10 @@ select.rp-input { appearance: auto; }
 .rp-alert ul { margin: 0; padding-left: 16px; }
 .rp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 560px) { .rp-row { grid-template-columns: 1fr; gap: 0; } }
+.rq-name-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(76px, .65fr) minmax(0, 1.15fr); gap: 8px; }
+.rq-name-grid > div { min-width: 0; }
+.rq-name-grid > div:nth-child(2) .rp-label { white-space: nowrap; }
+@media (max-width: 440px) { .rq-name-grid { grid-template-columns: minmax(0, 1fr) 74px minmax(0, 1fr); gap: 6px; } .rq-name-grid .rp-label { font-size: 11px; } }
 
 /* password meter */
 .rp-meter { margin-top: 8px; }

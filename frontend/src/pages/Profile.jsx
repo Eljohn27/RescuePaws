@@ -44,6 +44,7 @@ function Row({ img, title, sub, status, note, actions }) {
 export default function Profile({ user, setUser, setIsLoggedIn }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState('posts'); // posts | requests | edit
+  const [postFilter, setPostFilter] = useState('all'); // all | sighting | foster
   const [data, setData] = useState(null);
   const [me, setMe] = useState({ name: '', phone: '', avatar: '' }); // phone = the 10 digits after +63
   const [saving, setSaving] = useState(false);
@@ -91,13 +92,19 @@ export default function Profile({ user, setUser, setIsLoggedIn }) {
   const del = (kind, id) => <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => setConfirmDelete({ kind, id })}><Icon name="trash" size={13} /> Delete</button>;
 
   const posts = data ? [
-    ...data.fosters.map((p) => ({ at: p.createdAt, el: (
+    ...data.fosters.map((p) => ({ kind: 'foster', at: p.createdAt, el: (
       <Row key={`f${p._id}`} img={p.image} title={p.petName} sub={`For adoption · ${p.location} · ${when(p.createdAt)}`} status={fosterStatus(p)} note={p.moderationStatus === 'Rejected' ? p.reviewNote : ''}
         actions={<>{editable('foster', p._id, p.listingStatus === 'Adopted')}{p.listingStatus !== 'Adopted' && del('foster', p._id)}</>} />) })),
-    ...data.strays.map((s) => ({ at: s.createdAt, el: (
+    ...data.strays.map((s) => ({ kind: 'sighting', at: s.createdAt, el: (
       <Row key={`s${s._id}`} img={s.photoUrl} title={`${s.animalType}${s.keyFeatures ? ` (${s.keyFeatures})` : ''}`} sub={`Sighting · ${s.location} · ${when(s.createdAt)}`} status={strayStatus(s)} note={s.moderationStatus === 'Rejected' ? s.reviewNote : ''}
         actions={<>{editable('stray', s._id, s.moderationStatus === 'Rescued')}{s.moderationStatus !== 'Rescued' && del('stray', s._id)}</>} />) })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at)) : [];
+  const visiblePosts = postFilter === 'all' ? posts : posts.filter((post) => post.kind === postFilter);
+  const postFilters = [
+    { id: 'all', label: 'All Posts', count: posts.length },
+    { id: 'sighting', label: 'Sightings', count: posts.filter((post) => post.kind === 'sighting').length },
+    { id: 'foster', label: 'Foster', count: posts.filter((post) => post.kind === 'foster').length },
+  ];
 
   const sent = data ? [
     ...data.requests.map((r) => ({ at: r.createdAt, el: <Row key={`r${r.id}`} img={r.img} title={`Request to adopt ${r.animal}`} sub={r.date} status={requestStatus(r)} note={r.status === 'Rejected' ? r.reviewNote : ''} /> })),
@@ -126,7 +133,20 @@ export default function Profile({ user, setUser, setIsLoggedIn }) {
       <div className="pf__tabs">{tabBtn('posts', 'My Posts')}{tabBtn('requests', 'My Requests')}</div>
 
       {!data && tab !== 'edit' && <p style={{ color: '#64748b' }}>Loading...</p>}
-      {data && tab === 'posts' && (posts.length ? <div className="pf__stack">{posts.map((p) => p.el)}</div> : empty('You have not posted anything yet.', 'Post now', '/post'))}
+      {data && tab === 'posts' && <>
+        <div className="pf__post-filters" aria-label="Filter your posts">
+          {postFilters.map((filter) => (
+            <button key={filter.id} type="button" className={`pf__tab${postFilter === filter.id ? ' is-on' : ''}`} onClick={() => setPostFilter(filter.id)} aria-pressed={postFilter === filter.id}>
+              {filter.label}<span className="pf__filter-count">{filter.count}</span>
+            </button>
+          ))}
+        </div>
+        {posts.length === 0
+          ? empty('You have not posted anything yet.', 'Post now', '/post')
+          : visiblePosts.length
+            ? <div className="pf__stack">{visiblePosts.map((p) => p.el)}</div>
+            : <div className="pf__empty" role="status">No {postFilter === 'sighting' ? 'sighting' : 'foster'} posts yet.</div>}
+      </>}
       {data && tab === 'requests' && (sent.length ? <div className="pf__stack">{sent.map((p) => p.el)}</div> : empty('You have not sent any requests or proofs yet.', 'Browse', '/browse'))}
 
       {tab === 'edit' && (

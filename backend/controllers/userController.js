@@ -21,6 +21,7 @@ import { OTP_TTL_MS, OTP_RESEND_COOLDOWN_MS, OTP_MAX_ATTEMPTS, makeOtp, hashOtp,
 import { serializeUser, serializePoster, serializeSighting, serializeAdoption } from "../utils/serializers.js";
 import { isOwner } from "../utils/guards.js";
 import env from "../config/env.js";
+import removeDirectMessages from "../utils/removeDirectMessages.js";
 
 // @route   PATCH /api/users/me
 // @desc    Update own profile. Roles can only be adopter/reporter here; "admin" is preserved, never granted.
@@ -236,6 +237,7 @@ export const deleteMe = asyncHandler(async (req, res) => {
       await RescueProof.deleteMany({ _id: { $in: proofIds } }, { session });
       await Report.deleteMany({ _id: { $in: reportIds } }, { session });
       await Notification.deleteMany({ $or: [{ user: user._id }, { relatedId: { $in: relatedIds } }] }, { session });
+      await removeDirectMessages(user._id, session);
       await PasswordChallenge.deleteMany({ user: user._id }, { session });
       await RegistrationChallenge.deleteMany({ email: user.email }, { session });
       await Sighting.updateMany({ likes: user._id }, { $pull: { likes: user._id } }, { session });

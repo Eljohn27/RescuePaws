@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import Icon from '../components/Icons';
 import ReasonModal from '../components/ReasonModal';
+import DeletePostModal from '../components/DeletePostModal';
 
 // Foster posts = pets posted for adoption. Admin approves them before they appear on Browse.
 const STYLE = {
@@ -24,6 +25,7 @@ export default function AdoptionReviews() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: '', bad: false });
   const [asking, setAsking] = useState(null); // { id, takeDown }
+  const [deleting, setDeleting] = useState(null);
 
   const say = (text, bad = false) => {
     setMessage({ text, bad });
@@ -45,6 +47,12 @@ export default function AdoptionReviews() {
     load();
   };
   const approve = async (id) => { try { await moderate(id, 'Approved'); } catch (e) { say(e.message, true); } };
+  const deletePost = async () => {
+    await api(`/adoptions/${deleting.id}`, { method: 'DELETE' });
+    setPosts((current) => current.filter((post) => post._id !== deleting.id));
+    say('Post and its related records were permanently deleted.');
+    setDeleting(null);
+  };
 
   const count = (g) => posts.filter((p) => groupOf(p) === g).length;
   const tabs = [
@@ -113,6 +121,7 @@ export default function AdoptionReviews() {
                   {g === 'Approved' && <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => setAsking({ id: p._id, takeDown: true })}>Take down</button>}
                   {g === 'Rejected' && <button type="button" className="rp-btn rp-btn--primary rp-btn--sm" onClick={() => approve(p._id)}>Approve instead</button>}
                   {g === 'Adopted' && <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 700 }}>Adopted</span>}
+                  <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => setDeleting({ id: p._id, name: p.petName || 'Foster post' })}><Icon name="trash" size={13} /> Delete permanently</button>
                 </div>
               </div>
             </div>
@@ -129,6 +138,7 @@ export default function AdoptionReviews() {
           onConfirm={async (reason) => { await moderate(asking.id, 'Rejected', reason); setAsking(null); }}
         />
       )}
+      {deleting && <DeletePostModal postName={deleting.name} postType="Foster post" onCancel={() => setDeleting(null)} onConfirm={deletePost} />}
     </div>
   );
 }

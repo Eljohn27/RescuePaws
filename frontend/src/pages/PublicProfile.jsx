@@ -56,6 +56,7 @@ export default function PublicProfile({ isLoggedIn, user }) {
             <div><strong>{stats.petsAdopted}</strong><span>Pets adopted out</span></div>
           </div>
         </div>
+        {isLoggedIn && <button type="button" className="rp-btn rp-btn--primary pp__message" onClick={() => navigate(`/messages?user=${encodeURIComponent(poster.id)}`)}><Icon name="mail" size={15} /> Message</button>}
       </section>
 
       <h2 className="pp__title">Posts by {poster.name}</h2>

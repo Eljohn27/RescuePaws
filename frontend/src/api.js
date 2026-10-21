@@ -2,12 +2,13 @@
 export const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 export const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || 'http://localhost:5174';
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, signal } = {}) {
   const token = localStorage.getItem('token');
   const res = await fetch(API + path, {
     method,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   const data = await res.json().catch(() => null);
 

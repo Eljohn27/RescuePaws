@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import Icon from '../components/Icons';
 import ReasonModal from '../components/ReasonModal';
+import DeletePostModal from '../components/DeletePostModal';
 
 const STATUS_STYLE = {
   'Pending for Approval': { color: '#b45309', bg: '#fef3c7' },
@@ -26,6 +27,7 @@ export default function SightingsModeration({ initialTab = 'All' }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: '', bad: false });
   const [asking, setAsking] = useState(null); // { kind: 'report' | 'proof', id, takeDown? }
+  const [deleting, setDeleting] = useState(null);
 
   const say = (text, bad = false) => {
     setMessage({ text, bad });
@@ -58,6 +60,12 @@ export default function SightingsModeration({ initialTab = 'All' }) {
     load();
   };
   const approveProof = async (id) => { try { await reviewProof(id, 'Approved'); } catch (e) { say(e.message, true); } };
+  const deletePost = async () => {
+    await api(`/sightings/${deleting.id}`, { method: 'DELETE' });
+    setReports((current) => current.filter((report) => report._id !== deleting.id));
+    say('Sighting post and its related records were permanently deleted.');
+    setDeleting(null);
+  };
 
   const count = (status) => reports.filter((r) => r.moderationStatus === status).length;
   const tabs = [
@@ -158,6 +166,7 @@ export default function SightingsModeration({ initialTab = 'All' }) {
                       </>
                     )}
                     {r.moderationStatus === 'Rescued' && <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 700 }}>Rescue completed</span>}
+                    <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => setDeleting({ id: r._id, name: `${r.animalType || 'Animal'} sighting` })}><Icon name="trash" size={13} /> Delete permanently</button>
                   </div>
                 </div>
               </div>
@@ -179,6 +188,7 @@ export default function SightingsModeration({ initialTab = 'All' }) {
           }}
         />
       )}
+      {deleting && <DeletePostModal postName={deleting.name} postType="Sighting report" onCancel={() => setDeleting(null)} onConfirm={deletePost} />}
     </div>
   );
 }

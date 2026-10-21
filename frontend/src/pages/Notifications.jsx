@@ -6,7 +6,7 @@ import Modal from '../components/Modal';
 import './Notifications.css';
 
 const POLL_MS = 10000;
-const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', System: 'info' };
+const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', Messages: 'mail', System: 'info' };
 const STATUS = {
   'Needs Review': { text: 'Waiting for you', bg: '#fef3c7', color: '#92400e' },
   Approved: { text: 'Approved, pet adopted', bg: '#dcfce7', color: '#166534' },
@@ -140,7 +140,7 @@ export default function Notifications() {
 
       <div className="nt__list">
         {shown.map((n) => (
-          <button type="button" key={n._id} className={`nt__item${n.unread ? ' is-unread' : ''}`} onClick={() => readOne(n)} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}>
+          <button type="button" key={n._id} className={`nt__item${n.unread ? ' is-unread' : ''}`} onClick={() => { readOne(n); if (n.category === 'Messages' && n.relatedId) navigate(`/messages?conversation=${encodeURIComponent(n.relatedId)}`); }} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}>
             <span className={`nt__icon nt__icon--${n.category}`}><Icon name={ICON[n.category] || 'info'} size={19} /></span>
             <span className="nt__text">
               <span className="nt__title"><strong>{n.title}</strong><time>{n.time}</time></span>

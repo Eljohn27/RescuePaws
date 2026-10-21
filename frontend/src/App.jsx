@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
+import Messages from './pages/Messages';
 
 // Read the saved login (so the user stays logged in after a refresh)
 const savedUser = () => {
@@ -45,6 +46,7 @@ function App() {
         <Route path="/post/:kind/:id" element={needLogin(<Post />)} />
 
         <Route path="/notifications" element={needLogin(<Notifications />)} />
+        <Route path="/messages" element={needLogin(<Messages user={user} />)} />
         <Route path="/profile" element={needLogin(<Profile user={user} setUser={setUser} setIsLoggedIn={setIsLoggedIn} />)} />
         <Route path="/user/:id" element={<PublicProfile isLoggedIn={isLoggedIn} user={user} />} />
 

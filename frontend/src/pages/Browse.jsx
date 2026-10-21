@@ -138,7 +138,7 @@ export default function Browse({ isLoggedIn, user }) {
       </main>
 
       {modal?.type === 'respond' && (
-        <Modal onClose={() => setModal(null)} icon="heart"
+        <Modal onClose={() => setModal(null)} icon="heart" maxWidth={modal.item.kind === 'stray' ? 440 : 540}
           title={modal.item.kind === 'stray' ? 'Proof of adoption' : `Request to adopt ${modal.item.title}`}
           subtitle={modal.item.kind === 'stray' ? 'Show the admin that you took in this stray.' : 'Your request goes to the person who posted this pet.'}>
           {modal.item.kind === 'stray' ? <ProofForm item={modal.item} onDone={done} /> : <RequestForm item={modal.item} user={user} onDone={done} />}

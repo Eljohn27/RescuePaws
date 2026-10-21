@@ -15,6 +15,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import uploadRoutes, { UPLOAD_DIR } from "./routes/uploadRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/adoptions", adoptionRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/proofs", proofRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/messages", messageRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
 

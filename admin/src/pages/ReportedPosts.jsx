@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import Icon from '../components/Icons';
 import ReasonModal from '../components/ReasonModal';
+import DeletePostModal from '../components/DeletePostModal';
 
 const photo = (u) => (!u ? '' : u.startsWith('/') ? `http://localhost:5173${u}` : u);
 const when = (d) => new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -13,6 +14,7 @@ export default function ReportedPosts({ onChanged }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: '', bad: false });
   const [asking, setAsking] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   const say = (text, bad = false) => { setMessage({ text, bad }); setTimeout(() => setMessage({ text: '', bad: false }), 4000); };
 
@@ -29,6 +31,14 @@ export default function ReportedPosts({ onChanged }) {
     onChanged?.();
   };
   const dismiss = async (id) => { try { await review(id, 'dismiss'); } catch (e) { say(e.message, true); } };
+  const deletePost = async () => {
+    const resource = deleting.targetType === 'sighting' ? 'sightings' : 'adoptions';
+    await api(`/${resource}/${deleting.targetId}`, { method: 'DELETE' });
+    setReports((current) => current.filter((report) => report.targetId !== deleting.targetId));
+    say('Post and its related records were permanently deleted.');
+    setDeleting(null);
+    onChanged?.();
+  };
 
   return (
     <div style={{ textAlign: 'left', width: '100%' }}>
@@ -70,6 +80,7 @@ export default function ReportedPosts({ onChanged }) {
                 <div className="adm-actions">
                   <button type="button" className="rp-btn rp-btn--ghost rp-btn--sm" onClick={() => dismiss(r.id)}>Dismiss report</button>
                   {r.post && r.post.moderationStatus !== 'Rejected' && <button type="button" className="rp-btn rp-btn--solid-danger rp-btn--sm" onClick={() => setAsking(r)}>Take down post</button>}
+                  {r.post && <button type="button" className="rp-btn rp-btn--danger rp-btn--sm" onClick={() => setDeleting({ targetId: r.targetId, targetType: r.targetType, name: r.post.title })}><Icon name="trash" size={13} /> Delete permanently</button>}
                 </div>
               )}
             </div>
@@ -82,6 +93,7 @@ export default function ReportedPosts({ onChanged }) {
           confirmLabel="Take down post" onCancel={() => setAsking(null)}
           onConfirm={async (reason) => { await review(asking.id, 'takedown', reason); setAsking(null); }} />
       )}
+      {deleting && <DeletePostModal postName={deleting.name} postType={deleting.targetType === 'sighting' ? 'Sighting report' : 'Foster post'} onCancel={() => setDeleting(null)} onConfirm={deletePost} />}
     </div>
   );
 }

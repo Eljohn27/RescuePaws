@@ -9,6 +9,7 @@ const make = ({ message = "Too many requests, please try again later", ...opts }
     ...opts,
   });
 export const apiLimiter = make({ windowMs: 15 * 60 * 1000, limit: env.apiRateLimitMax });
+export const messageSendLimiter = make({ windowMs: 60 * 1000, limit: 30, message: "You are sending messages too quickly. Please wait a minute." });
 
 export const loginLimiter = make({
   windowMs: env.authRateLimitWindowMin * 60 * 1000,

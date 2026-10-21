@@ -8,7 +8,7 @@ import { notify, notifyAdmins } from "../utils/notify.js";
 import { getPaging } from "../utils/pagination.js";
 import { forbid, isAdmin, isOwner } from "../utils/guards.js";
 import { serializeApplication } from "../utils/serializers.js";
-import { isDagupanAdoption } from "../utils/pangasinanLocations.js";
+import { isDagupanAdoption, resolveDagupanBarangay, formatPangasinanLocation } from "../utils/pangasinanLocations.js";
 
 const POST_POPULATE = { path: "post", select: "petName animalType age breed photoUrl owner listingStatus", populate: { path: "owner", select: "name" } };
 
@@ -23,9 +23,12 @@ export const submitApplication = asyncHandler(async (req, res) => {
   if (!isDagupanAdoption(post)) throw new ApiError(409, "This pet is unavailable because its location is not confirmed in Dagupan City");
 
   const data = matchedData(req, { locations: ["body"] });
+  const { cityMunicipalityCode, barangayCode, streetLandmark = "", ...applicationData } = data;
+  if (!resolveDagupanBarangay(cityMunicipalityCode, barangayCode)) throw new ApiError(400, "Choose a valid Dagupan City barangay");
+  applicationData.address = formatPangasinanLocation(cityMunicipalityCode, barangayCode, streetLandmark);
   let application;
   try {
-    application = await AdoptionApplication.create({ ...data, post: post._id, applicant: req.userId });
+    application = await AdoptionApplication.create({ ...applicationData, post: post._id, applicant: req.userId });
   } catch (err) {
     if (err.code === 11000) throw new ApiError(409, "You have already applied for this pet");
     throw err;

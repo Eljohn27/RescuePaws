@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from './Icons';
+import ImagePreview from './ImagePreview';
 
 // One common card shape for both kinds of post
 export const fromSighting = (s) => ({ key: `s-${s._id}`, kind: 'stray', id: s._id, _id: s._id, animal: s.animalType, image: s.image, mine: s.isMine, title: s.name, location: s.location, cityMunicipalityCode: s.cityMunicipalityCode, barangayCode: s.barangayCode, latitude: s.latitude, longitude: s.longitude, time: s.time, text: s.description, createdAt: s.createdAt, poster: s.poster, chips: [s.approximateSize && `${s.approximateSize} size`, s.condition].filter(Boolean), badge: s.badge });
@@ -30,6 +31,7 @@ export function PosterChip({ poster, time, meId }) {
 }
 
 export default function PostCard({ item, meId, isLoggedIn, alreadySent, onAction, onReport }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const isStray = item.kind === 'stray';
   return (
     <article className="pc">
@@ -41,7 +43,9 @@ export default function PostCard({ item, meId, isLoggedIn, alreadySent, onAction
       </header>
 
       <div className="pc__photo">
-        <img src={item.image} alt={item.title} loading="lazy" />
+        <button type="button" className="pc__photo-button" onClick={() => setPreviewOpen(true)} aria-label={`View full-size photo of ${item.title}`}>
+          <img src={item.image} alt={item.title} loading="lazy" />
+        </button>
         <span className={`pc__kind pc__kind--${item.kind}`}>{isStray ? 'Sighting' : 'For adoption'}</span>
         <span className="pc__animal">{item.animal}</span>
       </div>
@@ -66,6 +70,7 @@ export default function PostCard({ item, meId, isLoggedIn, alreadySent, onAction
           {!isLoggedIn && !item.mine && <span className="pc__hint">Log in to respond</span>}
         </div>
       </div>
+      {previewOpen && <ImagePreview src={item.image} alt={item.title} onClose={() => setPreviewOpen(false)} />}
     </article>
   );
 }

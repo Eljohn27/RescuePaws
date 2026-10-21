@@ -1,12 +1,16 @@
 import { body, query } from "express-validator";
-import { str, phoneAny, email, oneOf, idParam, pagination } from "./common.js";
+import { str, email, oneOf, idParam, pagination, personName, phone11, landmark } from "./common.js";
+import { DAGUPAN_CODE, DAGUPAN_BARANGAY_CODES } from "../utils/pangasinanLocations.js";
 
 export const submit = [
   idParam("id"),
-  str("fullName", "Full name", { required: true, min: 2, max: 60 }),
-  phoneAny("phone", { required: true }),
+  personName("fullName", "Full name"),
+  phone11("phone"),
   email("email"),
-  str("address", "Address", { required: true, min: 5, max: 200 }),
+  body("email").custom((value) => typeof value === "string" && value.toLowerCase().endsWith("@gmail.com")).withMessage("Use a Gmail address ending in @gmail.com"),
+  oneOf("cityMunicipalityCode", "City", [DAGUPAN_CODE], { required: true }),
+  oneOf("barangayCode", "Barangay", [...DAGUPAN_BARANGAY_CODES], { required: true }),
+  landmark("streetLandmark"),
   str("workMode", "Work mode", { max: 60 }),
   str("housingType", "Housing type", { max: 60 }),
   str("ownershipStatus", "Ownership status", { max: 60 }),

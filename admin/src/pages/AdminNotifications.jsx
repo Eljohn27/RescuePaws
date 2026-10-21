@@ -3,7 +3,7 @@ import { api } from '../api';
 import Icon from '../components/Icons';
 
 const POLL_MS = 10000;
-const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', System: 'info' };
+const ICON = { Adoption: 'heart', Sightings: 'pin', Reports: 'flag', Messages: 'mail', System: 'info' };
 const TONE = {
   Adoption: { bg: '#ffe4e6', color: '#e11d48' },
   Sightings: { bg: '#e0f2fe', color: '#0369a1' },
@@ -12,7 +12,7 @@ const TONE = {
 };
 
 // Real admin inbox: new posts, rescue proofs and reports show up here by themselves.
-export default function AdminNotifications({ onChanged }) {
+export default function AdminNotifications({ onChanged, onOpenMessages }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
@@ -72,7 +72,7 @@ export default function AdminNotifications({ onChanged }) {
         {shown.map((n) => {
           const tone = TONE[n.category] || TONE.System;
           return (
-            <button type="button" key={n._id} onClick={() => readOne(n)} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}
+            <button type="button" key={n._id} onClick={() => { readOne(n); if (n.category === 'Messages' && n.relatedId) onOpenMessages?.(n.relatedId); }} aria-label={`${n.unread ? 'Unread: ' : ''}${n.title}`}
               style={{ display: 'flex', gap: 14, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, border: `1px solid ${n.unread ? '#fed7aa' : '#e2e8f0'}`, background: n.unread ? '#fff7ed' : '#fff', cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit' }}>
               <span style={{ width: 40, height: 40, borderRadius: 12, background: tone.bg, color: tone.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name={ICON[n.category] || 'info'} size={19} /></span>
               <span style={{ flex: 1, minWidth: 0 }}>

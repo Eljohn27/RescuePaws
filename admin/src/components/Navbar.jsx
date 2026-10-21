@@ -1,7 +1,7 @@
 import React from 'react';
 import Icon from './Icons';
 
-export default function Navbar({ activeTab, setActiveTab, unread = 0, openReports = 0, onLogout }) {
+export default function Navbar({ activeTab, setActiveTab, unread = 0, unreadMessages = 0, openReports = 0, onLogout }) {
   const tabs = [
     { id: 'overview', label: 'Admin Dashboard' },
     { id: 'sightings', label: 'Sightings Moderation' },
@@ -34,6 +34,11 @@ export default function Navbar({ activeTab, setActiveTab, unread = 0, openReport
             aria-label={unread > 0 ? `Notifications, ${unread} new` : 'Notifications'} title="Notifications">
             <Icon name="bell" size={18} />
             {unread > 0 && <span className="an__dot">{unread > 9 ? '9+' : unread}</span>}
+          </button>
+          <button type="button" className={`an__icon${activeTab === 'messages' ? ' is-on' : ''}`} onClick={() => setActiveTab('messages')}
+            aria-label={unreadMessages > 0 ? `Inbox, ${unreadMessages} unread messages` : 'Inbox'} title="Inbox">
+            <Icon name="mail" size={18} />
+            {unreadMessages > 0 && <span className="an__dot">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
           </button>
           <button type="button" className={`an__icon${activeTab === 'profile' ? ' is-on' : ''}`} onClick={() => setActiveTab('profile')} aria-label="My profile" title="My profile"><Icon name="user" size={18} /></button>
           <button type="button" className="an__icon" onClick={onLogout} aria-label="Log out" title="Log out"><Icon name="logout" size={18} /></button>

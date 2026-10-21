@@ -12,6 +12,7 @@ export default function Navbar({ isLoggedIn, onLogout, user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [unread, setUnread] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -27,8 +28,9 @@ export default function Navbar({ isLoggedIn, onLogout, user }) {
 
   // The red dot follows the real unread count: it appears when something new arrives and disappears once it is read.
   const refresh = useCallback(() => {
-    if (!isLoggedIn) { setUnread(0); return; }
+    if (!isLoggedIn) { setUnread(0); setUnreadMessages(0); return; }
     api('/notifications/unread-count').then((r) => setUnread(r.unreadCount || 0)).catch(() => {});
+    api('/messages/unread-count').then((r) => setUnreadMessages(r.unreadCount || 0)).catch(() => {});
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -75,6 +77,11 @@ export default function Navbar({ isLoggedIn, onLogout, user }) {
                 aria-label={unread > 0 ? `Notifications, ${unread} new` : 'Notifications'} title="Notifications">
                 <Icon name="bell" size={19} />
                 {unread > 0 && <span className="nav__dot">{unread > 9 ? '9+' : unread}</span>}
+              </button>
+              <button type="button" className={`nav__bell${isActive('/messages') ? ' nav__bell--on' : ''}`} onClick={() => navigate('/messages')}
+                aria-label={unreadMessages > 0 ? `Inbox, ${unreadMessages} unread messages` : 'Inbox'} title="Inbox">
+                <Icon name="mail" size={19} />
+                {unreadMessages > 0 && <span className="nav__dot">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
               </button>
 
               <div className="nav__user" ref={menuRef}>

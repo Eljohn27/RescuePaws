@@ -13,6 +13,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import audit from "../utils/audit.js";
 import { getPaging } from "../utils/pagination.js";
 import { serializeUser } from "../utils/serializers.js";
+import removeDirectMessages from "../utils/removeDirectMessages.js";
 
 const toMap = (rows) => Object.fromEntries(rows.map((r) => [r._id, r.count]));
 const countBy = (Model, field) => Model.aggregate([{ $group: { _id: `$${field}`, count: { $sum: 1 } } }]);
@@ -112,6 +113,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
     RescueProof.deleteMany({ submittedBy: user._id }),
     PasswordChallenge.deleteMany({ user: user._id }),
     Report.deleteMany({ reporter: user._id, status: "Open" }),
+    removeDirectMessages(user._id),
   ]);
   audit(req, "user.delete", { resource: "user", resourceId: user._id });
   res.json({ message: "User deleted" });

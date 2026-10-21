@@ -6,6 +6,9 @@
 .pf__edit-account { flex-shrink: 0; }
 .pf__head h1 { margin: 0; font-size: 24px; color: var(--ink-strong); }
 .pf__tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.pf__post-filters { display: flex; gap: 8px; margin: -6px 0 16px; flex-wrap: wrap; }
+.pf__filter-count { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; margin-left: 7px; border-radius: 99px; background: rgba(148, 163, 184, .16); font-size: 11px; font-weight: 700; }
+.pf__tab.is-on .pf__filter-count { background: rgba(255, 255, 255, .22); }
 .pf__tab { padding: 8px 18px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: #475569; font-size: 13px; font-weight: 600; cursor: pointer; }
 .pf__tab.is-on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 800; }
 .pf__stack { display: flex; flex-direction: column; gap: 12px; }

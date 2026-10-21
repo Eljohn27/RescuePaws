@@ -75,7 +75,7 @@ export default function Home({ isLoggedIn }) {
         <div className="home__stats">
           <div className="home__stat"><strong>{loading ? '-' : sightings.length}</strong><span>Strays reported</span></div>
           <div className="home__stat"><strong>{loading ? '-' : fosters.length}</strong><span>Foster pets</span></div>
-          <div className="home__stat"><strong>48</strong><span>Cities and towns covered</span></div>
+          <div className="home__stat"><strong>1</strong><span>City covered</span></div>
         </div>
 
         <section className="home__section">
@@ -183,3 +183,4 @@ export default function Home({ isLoggedIn }) {
     </div>
   );
 }
+
